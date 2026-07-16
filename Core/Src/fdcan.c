@@ -76,19 +76,19 @@ void MX_FDCAN1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN FDCAN1_Init 2 */
-  // 配置FDCAN1过滤�????????????
+  // 配置FDCAN1过滤�?????????????
   FDCAN_FilterTypeDef sFilterConfig1 = {0};
   sFilterConfig1.IdType = FDCAN_EXTENDED_ID;          // 扩展ID
-  sFilterConfig1.FilterIndex = 0;                     // 过滤�?????????????0
+  sFilterConfig1.FilterIndex = 0;                     // 过滤�??????????????0
   sFilterConfig1.FilterType = FDCAN_FILTER_MASK;      // 掩码模式
   sFilterConfig1.FilterConfig = FDCAN_FILTER_TO_RXFIFO0; // 进FIFO0
-  sFilterConfig1.FilterID1 = 0x00000000;               // 接收�?????????????有ID
-  sFilterConfig1.FilterID2 = 0x00000000;               // 掩码�?????????????0
+  sFilterConfig1.FilterID1 = 0x00000000;               // 接收�??????????????有ID
+  sFilterConfig1.FilterID2 = 0x00000000;               // 掩码�??????????????0
   if (HAL_FDCAN_ConfigFilter(&hfdcan1, &sFilterConfig1) != HAL_OK)
   {
     Error_Handler();
   }
-  // �????????????活FIFO0接收中断（可选）
+  // �?????????????活FIFO0接收中断（可选）
   HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
   // 启动FDCAN
@@ -140,7 +140,7 @@ void MX_FDCAN2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN FDCAN2_Init 2 */
-  // 配置FDCAN2过滤�?????????????
+  // 配置FDCAN2过滤�??????????????
   FDCAN_FilterTypeDef sFilterConfig2 = {0};
   sFilterConfig2.IdType = FDCAN_EXTENDED_ID;
   sFilterConfig2.FilterIndex = 0;
@@ -152,7 +152,7 @@ void MX_FDCAN2_Init(void)
   {
     Error_Handler();
   }
-  // �?????????????活FIFO0接收中断（可选）
+  // �??????????????活FIFO0接收中断（可选）
   HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
   // 启动FDCAN
@@ -204,7 +204,7 @@ void MX_FDCAN3_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN FDCAN3_Init 2 */
-  // 配置FDCAN3过滤�?????????????
+  // 配置FDCAN3过滤�??????????????
   FDCAN_FilterTypeDef sFilterConfig3 = {0};
   sFilterConfig3.IdType = FDCAN_STANDARD_ID;          // 标准ID
   sFilterConfig3.FilterIndex = 0;                     // 过滤????0
@@ -216,7 +216,7 @@ void MX_FDCAN3_Init(void)
   {
     Error_Handler();
   }
-  // �?????????????活FIFO0接收中断（可选）
+  // �??????????????活FIFO0接收中断（可选）
   HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
   // 启动FDCAN
@@ -437,7 +437,7 @@ uint8_t FDCAN_Send_ExtFrame(FDCAN_HandleTypeDef *hfdcan, uint32_t id, uint8_t *d
 
   tx_header.Identifier = id;
   tx_header.IdType = FDCAN_EXTENDED_ID;       // 扩展ID
-  tx_header.TxFrameType = FDCAN_DATA_FRAME;   // 数据�?????????
+  tx_header.TxFrameType = FDCAN_DATA_FRAME;   // 数据�??????????
   tx_header.DataLength = len;
   tx_header.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   tx_header.BitRateSwitch = FDCAN_BRS_OFF;    // 无波特率切换
@@ -474,17 +474,16 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
   uint8_t data[8];
   FDCAN_RxHeaderTypeDef rx_header;
-  
   if((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != 0)
   {
     while(HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rx_header, data) == HAL_OK)
     {
       if(rx_header.IdType == FDCAN_EXTENDED_ID)  // 只处理扩展ID
       {
-        uint8_t id = (uint8_t)((rx_header.Identifier >> 8) & 0xFF); // 提取电机ID（假设在ID的特定位�???????????
+        uint8_t id = (uint8_t)((rx_header.Identifier >> 8) & 0xFF); // 提取电机ID（假设在ID的特定位�????????????
         // 解析电机状�??
         //EL05_Parse_Status(rx_header.Identifier, data, &motor_status);
-         // 解析位置(rad)：data[0-1]，16位无符号转浮点数
+         // 解析位置(rad)：data[0-1]�?16位无符号转浮点数
         uint16_t u_pos = (data[0] << 8) | data[1];
         // 解析速度(rad/s)：data[2-3]
         uint16_t u_vel = (data[2] << 8) | data[3];
@@ -495,7 +494,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
           MotorIMU_Packet_float[(id-r_leg_pitch)*2+1+12]= (float)u_vel * (V_MAX - V_MIN) / 65535.0f + V_MIN;
           memcpy(&motor_status_buf[(id-r_leg_pitch)*4], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
           //memcpy(&MotorIMU_Packet_t[(id-r_leg_pitch)*4], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
-          motor_status_ready |= (1 << (id - r_leg_pitch)); // 设置对应电机的数据就绪标�???
+          motor_status_ready |= (1 << (id - r_leg_pitch)); // 设置对应电机的数据就绪标�????
           motor_status_fault = (motor_status_fault & ~(1 << (id - r_leg_pitch))) | (((rx_header.Identifier >> 16) & 0x3F) != 0) << (id - r_leg_pitch);
           motor_status_mode = (motor_status_mode & ~(1 << (id - r_leg_pitch))) | ((((rx_header.Identifier >> 22) & 0x03) == 2) << (id - r_leg_pitch));
           }
@@ -514,9 +513,10 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
           }
         }
       }else if(rx_header.IdType == FDCAN_STANDARD_ID) {
-        // 处理IMU返回的数�?????????
-        if (rx_header.Identifier == imu.mst_id) {
+        // 处理IMU返回的数�??????????
+        if (rx_header.Identifier == imu.can_id || rx_header.Identifier == imu.mst_id) {
           IMU_UpdateData(data);
+          imu_data_count++;
         }
       }
    }

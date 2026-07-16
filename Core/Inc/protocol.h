@@ -13,7 +13,7 @@
 //==================== 数据结构体 ====================
 
  extern uint8_t MotorIMU_Packet_t[60]; // 电机+IMU数据包
- extern float MotorIMU_Packet_float[33]; // 电机+IMU数据包
+ extern float MotorIMU_Packet_float[34]; // 电机+IMU数据包
 
 //==================== 函数接口 ====================
 // USB发送 电机+IMU 数据包

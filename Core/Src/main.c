@@ -45,8 +45,8 @@
 typedef enum
 {
     ROBOT_STATE_IDLE = 0,    // 正常运行：上位机正常控电机上传IMU数据
-    ROBOT_STATE_ACTION,          // 执行二维码识别对应动�????
-    ROBOT_STATE_HOLD,          // 动作完成 停留3�????
+    ROBOT_STATE_ACTION,          // 执行二维码识别对应动�?????
+    ROBOT_STATE_HOLD,          // 动作完成 停留3�?????
     ROBOT_STATE_ERROR,           // 异常状�??
     ROBOT_STATE_RESET,            // 测试状�??
     ROBOT_STATE_TEST,            // 测试状�??
@@ -85,6 +85,8 @@ uint8_t usb_tx_buffer[120] = {0};
 volatile uint32_t system_control_cycle = 0;
 volatile uint32_t system_control_cycle_copy = 0;
 volatile uint16_t system_control_warning = 0;  
+volatile int32_t imu_data_count_copy = 0;
+volatile uint16_t imu_warning = 0;  
 
 volatile uint32_t controldata1number = 0;
 volatile uint8_t  controldata1ready = 0;
@@ -193,11 +195,20 @@ int main(void)
   MX_SPI6_Init();
   /* USER CODE BEGIN 2 */
   JetsonRobotBridge_Init();
-  HAL_Delay(100);       // 电机上电延时
+  HAL_Delay(500);       // 电机上电延时
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
   imu_init(0x0F, 0xFD, &hfdcan3);
+  // ==== 配置主动模式 100Hz 输出 6轴+四元数 ====
+  imu_change_to_request();                // 切到请求模式才能配置
+  HAL_Delay(20);
+  imu_set_active_mode_delay(10);          // 100Hz (10ms)
+  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=四元数, 0=欧拉角（6轴始终输出）
+  imu_save_parameters();                  // 保存到IMU内部Flash
+  HAL_Delay(20);
+  imu_change_to_active();                 // 切换到主动模式
+
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);    // 启动PWM信号输出（舵机控制）
-  SPI_LCD_Init();			// SPI LCD屏幕初始�??
+  SPI_LCD_Init();			// SPI LCD屏幕初始�???
   motor_enable();
   HAL_Delay(100);
   HAL_TIM_Base_Start_IT(&htim3);
@@ -221,6 +232,7 @@ int main(void)
   }
 
   //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
+  Action_Goto(0.15f, 0.0f, 0.0f, -0.30f, -0.15f, 0.0f, -0.15f, 0.0f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   system_control_warning = 0;
   /* USER CODE END 2 */
 
@@ -303,14 +315,14 @@ void Robot_State_Machine(void)
 {
     switch(robot_state)
     {
-      // 状�??1：正常模�???? 日常电机+IMU+USB双向通信
+      // 状�??1：正常模�????? 日常电机+IMU+USB双向通信
       case ROBOT_STATE_IDLE:
       {
         ROBOT_IDLE();
         break;
       }
 
-      // 状�??2：执行二维码识别对应的预设动作，动作完成后切到停留模�????
+      // 状�??2：执行二维码识别对应的预设动作，动作完成后切到停留模�?????
       case ROBOT_STATE_ACTION:
       {
         ROBOT_ACTION();
@@ -324,28 +336,28 @@ void Robot_State_Machine(void)
         break;
       }
 
-      // 状�??4：异常状�???? 自动切回正常模式
+      // 状�??4：异常状�????? 自动切回正常模式
       case ROBOT_STATE_ERROR:
       {
         ROBOT_ERROR();
         break;
       }
 
-      // 状�??5：测试状�???? 通过按键触发，执行预设动�????
+      // 状�??5：测试状�????? 通过按键触发，执行预设动�?????
       case ROBOT_STATE_RESET:
       {
         ROBOT_RESET();
         break;
       }
 
-      // 状�??6：测试状�????
+      // 状�??6：测试状�?????
       case ROBOT_STATE_TEST:
       {
         ROBOT_TEST();
         break;
       }
 
-      // 状�??7：测试二维码识别对应的预设动�????
+      // 状�??7：测试二维码识别对应的预设动�?????
       case ROBOT_STATE_TEST_ACTION:
       {
         ROBOT_TEST_ACTION();
@@ -384,25 +396,25 @@ void Robot_State_Machine(void)
 
 void ROBOT_IDLE(void) 
 {
-  // 处理通过USB CDC收到并通过CRC校验的Nano关节目标。
+  // 处理通过USB CDC收到并�?�过CRC校验的Nano关节目标�?
   JetsonRobotBridge_ProcessCommand();
 
-  if (imu_data_ready == 0x00) {
-      imu_request_accel();
-  }
-  else if (imu_data_ready== 0x01) {      
-    imu_request_gyro();
-  }
-  else if (imu_data_ready== 0x03) {      
-    imu_request_quat();
-  }
-  // 汇总电机状态和IMU数据，使用与通信测试工程相同的帧协议上传Nano。
+  // if (imu_data_ready == 0x00) {
+  //     imu_request_accel();
+  // }
+  // else if (imu_data_ready== 0x01) {      
+  //   imu_request_gyro();
+  // }
+  // else if (imu_data_ready== 0x03) {      
+  //   imu_request_quat();
+  // }
+  //汇�?�电机状态和IMU数据，使用与通信测试工程相同的帧协议上传Nano�?
   __disable_irq();
   uint16_t motor_status_ready_copy = motor_status_ready; 
   uint8_t imu_data_ready_copy = imu_data_ready; 
   __enable_irq();
-  if (motor_status_ready_copy == 0x0FFF && imu_data_ready_copy == 0x07) { // 假设12个电机都就绪且IMU数据都就�????
-    if (JetsonRobotBridge_SendState() == USBD_OK) { // USB发送成功
+  if (motor_status_ready_copy == 0x0FFF && imu_data_ready_copy == 0x07) { // 假设12个电机都就绪且IMU数据都就�?????
+    if (JetsonRobotBridge_SendState() == USBD_OK) { // USB发�?�成�?
     __disable_irq();
     motor_status_ready = 0; // 重置计数
     imu_data_ready = 0;
@@ -411,7 +423,7 @@ void ROBOT_IDLE(void)
     }
   }
 
-  // 收到Nano发来的二维码动作指令，切换动作模�????
+  // 收到Nano发来的二维码动作指令，切换动作模�?????
   if(action_state != ACTION_IDLE)
   {
     robot_state = ROBOT_STATE_ACTION;
@@ -422,7 +434,7 @@ void ROBOT_IDLE(void)
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   }
   // if(system_control_warning >= 10 || motor_status_fault != 0 || motor_status_mode != 0x0FFF) {
-  //   robot_state = ROBOT_STATE_ERROR; // 如果连续3个周期没有正常控制，切换到异常状�????
+  //   robot_state = ROBOT_STATE_ERROR; // 如果连续3个周期没有正常控制，切换到异常状�?????
   //   LCD_ClearRect(10, 10, 240, 24);
   //   LCD_DisplayText(10, 10, "Mode : ERROR");
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
@@ -430,6 +442,18 @@ void ROBOT_IDLE(void)
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   // }
+  if(imu_warning >=2 && imu_warning <=100) {
+  imu_change_to_request();                // 切到请求模式才能配置
+  HAL_Delay(20);
+  imu_set_active_mode_delay(10);          // 100Hz (10ms)
+  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=四元数, 0=欧拉角（6轴始终输出）
+  imu_save_parameters();                  // 保存到IMU内部Flash
+  HAL_Delay(20);
+  imu_change_to_active();                 // 切换到主动模式
+  }
+  if (imu_warning > 100) {
+    imu_data_ready=0x07;
+  }
 }
 
 void ROBOT_ACTION(void)
@@ -447,7 +471,7 @@ void ROBOT_ACTION(void)
 
 void ROBOT_HOLD(void)
 {
-  // 3秒时间到，切回正常运行模式，清空二维码指�????
+  // 3秒时间到，切回正常运行模式，清空二维码指�?????
   if(HAL_GetTick() - action_timer >= 3000)
   {
     robot_state = ROBOT_STATE_IDLE;
@@ -463,7 +487,7 @@ void ROBOT_HOLD(void)
 
 void ROBOT_ERROR(void)
 {
-  // 处理异常状�?�下的数�????
+  // 处理异常状�?�下的数�?????
   for (int i = 0; i < 12; i++) {
     if(motor_status_fault & (1 << i)) {
         // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发�?�控制命令等
@@ -536,7 +560,7 @@ void ROBOT_TEST(void)
     EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 50.0f, 5.0f);
   }
     
-    //发�?�电机状�????
+    //发�?�电机状�?????
     __disable_irq();
     uint16_t motor_status_ready_copy = motor_status_ready;
     memcpy(&usb_tx_buffer[0], motor_status_buf, sizeof(motor_status_buf));
@@ -592,7 +616,7 @@ void ROBOT_TEST_IMU(void)
     uint8_t imu_data_ready_copy = imu_data_ready; 
     memcpy(&usb_tx_buffer[48], imu_buf, sizeof(imu_buf)); 
     __enable_irq();
-    if (imu_data_ready_copy == 0x03) { // 假设IMU数据都就�????
+    if (imu_data_ready_copy == 0x03) { // 假设IMU数据都就�?????
       if (CDC_Transmit_HS(&usb_tx_buffer[48], sizeof(imu_buf)+52) == USBD_OK) {
         __disable_irq();
         imu_data_ready = 0; // 重置计数
@@ -680,7 +704,7 @@ void BUTTON_CHANGE(void)
           button_pressed --;
         }
       }
-      if(button_pressed == 0) {  // 按键0：正常模�????
+      if(button_pressed == 0) {  // 按键0：正常模�?????
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : IDLE");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
@@ -696,7 +720,7 @@ void BUTTON_CHANGE(void)
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
-      else if(button_pressed == 2) {  // 按键2：测�????
+      else if(button_pressed == 2) {  // 按键2：测�?????
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : TEST");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
@@ -777,13 +801,13 @@ void BUTTON_CHANGE(void)
 
 void Close_All_Old_Func(void)
 {
-    // 1. 关闭定时器中�????
+    // 1. 关闭定时器中�?????
 
     // 3. 关闭串口发�?�和接收
     HAL_UART_Abort(&huart1);
     HAL_UART_Abort(&huart2);
 
-    // 5. 清空�????有运行标志位
+    // 5. 清空�?????有运行标志位
     system_control_cycle = 0;
     system_control_cycle_copy = 0;
     system_control_warning = 0;  
@@ -809,8 +833,9 @@ void LCD_State_Machine(void)
   LCD_DisplayHex(166, 82, motor_status_fault, 4);
   LCD_DisplayHex(142, 106, (uint16_t)imu_data_ready, 2);
   LCD_DisplayNumber(94, 130, (uint32_t)system_control_cycle, 6);
-  LCD_DisplayNumber(118, 154, (uint32_t)system_control_warning, 4);
-  LCD_DisplayHex(10, 178, motor_fault_test, 6);
+  LCD_DisplayNumber(118, 154, (uint32_t)imu_warning, 4);
+  LCD_DisplayHex(10, 178, motor_fault_test, 4);
+  LCD_DisplayNumber(10, 202, imu_data_count, 8);
 }
 
 void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, float rangle5, float rangle6, float langle1, float langle2, float langle3, float langle4, float langle5, float langle6, uint8_t Goto_time)
@@ -831,18 +856,18 @@ void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, flo
   while(Goto_number < Goto_time) {
     if(Goto_ready){
       Goto_ready = 0;
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, leg_control[0], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, leg_control[1], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, leg_control[2], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, leg_control[3], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, leg_control[4], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, leg_control[5], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, leg_control[6], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, leg_control[7], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, leg_control[8], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, leg_control[9], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 50.0f, 5.0f);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 50.0f, 5.0f);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, leg_control[0], 0.0f, 35.0f, 1.5f);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, leg_control[1], 0.0f, 30.0f, 1.2f);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, leg_control[2], 0.0f, 20.0f, 1.0f);
+      EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, leg_control[3], 0.0f, 35.0f, 1.5f);
+      EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, leg_control[4], 0.0f, 15.0f, 0.8f);
+      EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, leg_control[5], 0.0f, 12.0f, 0.7f);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, leg_control[6], 0.0f, 35.0f, 1.5f);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, leg_control[7], 0.0f, 30.0f, 1.2f);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, leg_control[8], 0.0f, 20.0f, 1.0f);
+      EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, leg_control[9], 0.0f, 35.0f, 1.5f);
+      EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 15.0f, 0.8f);
+      EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 12.0f, 0.7f);
     }
   }
     HAL_TIM_Base_Stop_IT(&htim4);
@@ -889,11 +914,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
   if (htim->Instance == TIM3 && robot_state == ROBOT_STATE_IDLE) {
     if (system_control_cycle == system_control_cycle_copy) {
-        system_control_warning ++; // 如果周期计数没有增加，设置警告标�????
+        system_control_warning ++; // 如果周期计数没有增加，设置警告标�?????
     } else {
-        system_control_warning = 0; // 周期正常，清除警告标�????
+        system_control_warning = 0; // 周期正常，清除警告标�?????
     }
     system_control_cycle_copy = system_control_cycle;
+    if (imu_data_count == imu_data_count_copy) {
+        imu_warning ++; // 如果周期计数没有增加，设置警告标?????
+    } else {
+        imu_warning = 0; // 周期正常，清除警告标?????
+    }
+    imu_data_count_copy = imu_data_count;
   }
 
   if (htim->Instance == TIM4) {

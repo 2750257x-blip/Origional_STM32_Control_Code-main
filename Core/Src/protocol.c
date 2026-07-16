@@ -2,7 +2,7 @@
 
 uint8_t MotorIMU_Packet_t[60]; // 电机+IMU数据包
 
-float MotorIMU_Packet_float[33]; // 电机+IMU数据包
+float MotorIMU_Packet_float[34]; // 电机+IMU数据包
 //float数组0-23是12电机的数据，按顺序为：r_leg_pitch的位置 r_leg_pitch的速度, r_leg_roll的位置, r_leg_roll的速度......l_ankle_roll的位置,l_ankle_roll的速度
 //float数组24-26是三轴加速度m/s², 27-29是三轴角速度rad/s, 30-33是四元数数据
 
