@@ -185,7 +185,8 @@ void Motor_limitCtrl( FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id,  float kp, 
   uint16_t u_vel = float_to_uint(vel, V_MIN, V_MAX, 16);
   uint16_t u_kp  = float_to_uint(kp, KP_MIN, KP_MAX, 16);
   uint16_t u_kd  = float_to_uint(kd, KD_MIN, KD_MAX, 16);
-  uint32_t can_id = EL05_Combine_CANID_Ctrl(CMD_CTRL, 0, motor_id);
+  uint16_t u_tor = float_to_uint(0, T_MIN, T_MAX, 16);
+  uint32_t can_id = EL05_Combine_CANID_Ctrl(CMD_CTRL, u_tor, motor_id);
   data[0] = (u_pos >> 8) & 0xFF;
   data[1] = u_pos & 0xFF;
   data[2] = (u_vel >> 8) & 0xFF;
