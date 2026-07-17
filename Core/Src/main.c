@@ -110,6 +110,10 @@ volatile uint8_t uart_count2 = 0;
 volatile uint8_t uart_start2 = 0;
 volatile uint8_t uart_ready2 = 0;
 
+
+extern float kp_add;
+extern float kd_add;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -154,6 +158,12 @@ int main(void)
   /* USER CODE END 1 */
 
   /* MPU Configuration--------------------------------------------------------*/
+
+
+
+
+
+
 
 
 
@@ -866,18 +876,18 @@ void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, flo
   while(Goto_number < Goto_time) {
     if(Goto_ready){
       Goto_ready = 0;
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, leg_control[0], 0.0f, 35.0f, 1.5f);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, leg_control[1], 0.0f, 30.0f, 1.2f);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, leg_control[2], 0.0f, 20.0f, 1.0f);
-      EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, leg_control[3], 0.0f, 35.0f, 1.5f);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, leg_control[4], 0.0f, 15.0f, 0.8f);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, leg_control[5], 0.0f, 12.0f, 0.7f);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, leg_control[6], 0.0f, 35.0f, 1.5f);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, leg_control[7], 0.0f, 30.0f, 1.2f);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, leg_control[8], 0.0f, 20.0f, 1.0f);
-      EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, leg_control[9], 0.0f, 35.0f, 1.5f);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 15.0f, 0.8f);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 12.0f, 0.7f);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, leg_control[0], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, leg_control[1], 0.0f, 30.0f*kp_add, 1.2f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, leg_control[2], 0.0f, 20.0f*kp_add, 1.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, leg_control[3], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, leg_control[4], 0.0f, 15.0f*kp_add, 0.8f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, leg_control[5], 0.0f, 12.0f*kp_add, 0.7f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, leg_control[6], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, leg_control[7], 0.0f, 30.0f*kp_add, 1.2f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, leg_control[8], 0.0f, 20.0f*kp_add, 1.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, leg_control[9], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 15.0f*kp_add, 0.8f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 12.0f*kp_add, 0.7f*kd_add);
     }
   }
     HAL_TIM_Base_Stop_IT(&htim4);

@@ -20,7 +20,9 @@ volatile float g_debug_motor_target[PROTOCOL_NUM_JOINTS];
 volatile uint8_t g_debug_jetson_control_active;
 volatile uint32_t g_debug_watchdog_trip_count;
 volatile uint32_t g_debug_invalid_command_count;
-
+ 
+const float kp_add = 4.0f;
+const float kd_add = 1.0f;
 static float limit_gain_scale(float scale)
 {
     if (!isfinite(scale) || (scale < 0.0f)) {
@@ -81,9 +83,9 @@ static void apply_position_targets(const RobotCommandPayload *command)
             &hfdcan2,
             left_motor_id[index],
             target,
-            0.0f,
-            base_kp[index] * kp_scale,
-            base_kd[index] * kd_scale);
+            0.0f,         
+            base_kp[index] * kp_add * kp_scale,
+            base_kd[index] * kd_add * kd_scale);
     }
 
     for (index = 0U; index < 6U; ++index) {
@@ -97,8 +99,8 @@ static void apply_position_targets(const RobotCommandPayload *command)
             right_motor_id[index],
             target,
             0.0f,
-            base_kp[index] * kp_scale,
-            base_kd[index] * kd_scale);
+            base_kp[index] * kp_add * kp_scale,
+            base_kd[index] * kd_add * kd_scale);
     }
 }
 

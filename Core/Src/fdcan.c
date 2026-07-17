@@ -495,7 +495,8 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
           memcpy(&motor_status_buf[(id-r_leg_pitch)*4], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
           //memcpy(&MotorIMU_Packet_t[(id-r_leg_pitch)*4], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
           motor_status_ready |= (1 << (id - r_leg_pitch)); // 设置对应电机的数据就绪标�????
-          motor_status_fault = (motor_status_fault & ~(1 << (id - r_leg_pitch))) | (((rx_header.Identifier >> 16) & 0x3F) != 0) << (id - r_leg_pitch);
+          //motor_status_fault = (motor_status_fault & ~(1 << (id - r_leg_pitch))) | (((rx_header.Identifier >> 16) & 0x3F) != 0) << (id - r_leg_pitch);
+          motor_status_fault |= (((rx_header.Identifier >> 16) & 0x3F) != 0) << (id - r_leg_pitch);
           motor_status_mode = (motor_status_mode & ~(1 << (id - r_leg_pitch))) | ((((rx_header.Identifier >> 22) & 0x03) == 2) << (id - r_leg_pitch));
           }
           // 可以在这里添加代码将motor_status发到上位机，例如通过UART
@@ -507,7 +508,11 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
           memcpy(&motor_status_buf[(id-l_leg_pitch)*4+24], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
           //memcpy(&MotorIMU_Packet_t[(id-l_leg_pitch)*4+24], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
           motor_status_ready |= (1 << (id - l_leg_pitch + 6)); // 设置对应电机的数据就绪标??
-          motor_status_fault = (motor_status_fault & ~(1 << (id - l_leg_pitch + 6))) | (((rx_header.Identifier >> 16) & 0x3F) != 0) << (id - l_leg_pitch + 6);
+          //motor_status_fault = (motor_status_fault & ~(1 << (id - l_leg_pitch + 6))) | (((rx_header.Identifier >> 16) & 0x3F) != 0) << (id - l_leg_pitch + 6);
+          motor_status_fault |=
+          
+          
+          (((rx_header.Identifier >> 16) & 0x3F) != 0) << (id - l_leg_pitch + 6);
           motor_status_mode = (motor_status_mode & ~(1 << (id - l_leg_pitch + 6))) | ((((rx_header.Identifier >> 22) & 0x03) == 2) << (id - l_leg_pitch + 6));
           motor_fault_test = (motor_fault_test & ~(0X3F << (id - l_leg_pitch)*6)) | ((rx_header.Identifier >> 16) & 0x3F)<< (id - l_leg_pitch)*6;
           }
