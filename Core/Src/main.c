@@ -44,16 +44,16 @@
 /* USER CODE BEGIN PTD */
 typedef enum
 {
-    ROBOT_STATE_IDLE = 0,    // 正常运行：上位机正常控电机上传IMU数据
-    ROBOT_STATE_ACTION,          // 执行二维码识别对应动�?????
-    ROBOT_STATE_HOLD,          // 动作完成 停留3�?????
-    ROBOT_STATE_ERROR,           // 异常状�??
-    ROBOT_STATE_RESET,            // 测试状�??
-    ROBOT_STATE_TEST,            // 测试状�??
-    ROBOT_STATE_TEST_ACTION,      // 测试状�??
-    ROBOT_STATE_TEST_IMU,         // 测试状�??
-    ROBOT_STATE_TEST_UART,            // 测试状�??
-    ROBOT_STATE_TEST_INIT,            // 测试状�??
+    ROBOT_STATE_IDLE = 0,    // 姝ｅ父杩愯锛氫笂浣嶆満姝ｅ父鎺х數鏈轰笂浼營MU鏁版嵁
+    ROBOT_STATE_ACTION,          // 鎵ц浜岀淮鐮佽瘑鍒搴斿姩锟�?????
+    ROBOT_STATE_HOLD,          // 鍔ㄤ綔瀹屾垚 鍋滅暀3锟�?????
+    ROBOT_STATE_ERROR,           // 寮傚父鐘讹拷??
+    ROBOT_STATE_RESET,            // 娴嬭瘯鐘讹拷??
+    ROBOT_STATE_TEST,            // 娴嬭瘯鐘讹拷??
+    ROBOT_STATE_TEST_ACTION,      // 娴嬭瘯鐘讹拷??
+    ROBOT_STATE_TEST_IMU,         // 娴嬭瘯鐘讹拷??
+    ROBOT_STATE_TEST_UART,            // 娴嬭瘯鐘讹拷??
+    ROBOT_STATE_TEST_INIT,            // 娴嬭瘯鐘讹拷??
 }Robot_StateTypeDef;
 
 /* USER CODE END PTD */
@@ -214,20 +214,20 @@ int main(void)
   MX_SPI6_Init();
   /* USER CODE BEGIN 2 */
   JetsonRobotBridge_Init();
-  HAL_Delay(500);       // 电机上电延时
+  HAL_Delay(500);       // 鐢垫満涓婄數寤舵椂
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
   imu_init(0x0F, 0xFD, &hfdcan3);
-  // ==== 配置主动模式 100Hz 输出 6轴+四元数 ====
-  imu_change_to_request();                // 切到请求模式才能配置
+  // ==== 閰嶇疆涓诲姩妯″紡 100Hz 杈撳嚭 6杞�+鍥涘厓鏁� ====
+  imu_change_to_request();                // 鍒囧埌璇锋眰妯″紡鎵嶈兘閰嶇疆
   HAL_Delay(20);
   imu_set_active_mode_delay(10);          // 100Hz (10ms)
-  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=四元数, 0=欧拉角（6轴始终输出）
-  imu_save_parameters();                  // 保存到IMU内部Flash
+  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=鍥涘厓鏁�, 0=娆ф媺瑙掞紙6杞村缁堣緭鍑猴級
+  imu_save_parameters();                  // 淇濆瓨鍒癐MU鍐呴儴Flash
   HAL_Delay(20);
-  imu_change_to_active();                 // 切换到主动模式
+  imu_change_to_active();                 // 鍒囨崲鍒颁富鍔ㄦā寮�
 
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);    // 启动PWM信号输出（舵机控制）
-  SPI_LCD_Init();			// SPI LCD屏幕初始�???
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);    // 鍚姩PWM淇″彿杈撳嚭锛堣埖鏈烘帶鍒讹級
+  SPI_LCD_Init();			// SPI LCD灞忓箷鍒濆锟�???
   motor_enable();
   HAL_Delay(100);
   HAL_TIM_Base_Start_IT(&htim3);
@@ -335,70 +335,70 @@ void Robot_State_Machine(void)
 {
     switch(robot_state)
     {
-      // 状�??1：正常模�????? 日常电机+IMU+USB双向通信
+      // 鐘讹拷??1锛氭甯告ā锟�????? 鏃ュ父鐢垫満+IMU+USB鍙屽悜閫氫俊
       case ROBOT_STATE_IDLE:
       {
         ROBOT_IDLE();
         break;
       }
 
-      // 状�??2：执行二维码识别对应的预设动作，动作完成后切到停留模�?????
+      // 鐘讹拷??2锛氭墽琛屼簩缁寸爜璇嗗埆瀵瑰簲鐨勯璁惧姩浣滐紝鍔ㄤ綔瀹屾垚鍚庡垏鍒板仠鐣欐ā锟�?????
       case ROBOT_STATE_ACTION:
       {
         ROBOT_ACTION();
         break;
       }
 
-      // 状�??3：非阻塞停留3秒，全程不卡200Hz主循环，3秒后切回正常模式
+      // 鐘讹拷??3锛氶潪闃诲鍋滅暀3绉掞紝鍏ㄧ▼涓嶅崱200Hz涓诲惊鐜紝3绉掑悗鍒囧洖姝ｅ父妯″紡
       case ROBOT_STATE_HOLD:
       {
         ROBOT_HOLD();
         break;
       }
 
-      // 状�??4：异常状�????? 自动切回正常模式
+      // 鐘讹拷??4锛氬紓甯哥姸锟�????? 鑷姩鍒囧洖姝ｅ父妯″紡
       case ROBOT_STATE_ERROR:
       {
         ROBOT_ERROR();
         break;
       }
 
-      // 状�??5：测试状�????? 通过按键触发，执行预设动�?????
+      // 鐘讹拷??5锛氭祴璇曠姸锟�????? 閫氳繃鎸夐敭瑙﹀彂锛屾墽琛岄璁惧姩锟�?????
       case ROBOT_STATE_RESET:
       {
         ROBOT_RESET();
         break;
       }
 
-      // 状�??6：测试状�?????
+      // 鐘讹拷??6锛氭祴璇曠姸锟�?????
       case ROBOT_STATE_TEST:
       {
         ROBOT_TEST();
         break;
       }
 
-      // 状�??7：测试二维码识别对应的预设动�?????
+      // 鐘讹拷??7锛氭祴璇曚簩缁寸爜璇嗗埆瀵瑰簲鐨勯璁惧姩锟�?????
       case ROBOT_STATE_TEST_ACTION:
       {
         ROBOT_TEST_ACTION();
         break;
       }
 
-      // 状�??8：测试IMU通信
+      // 鐘讹拷??8锛氭祴璇旾MU閫氫俊
       case ROBOT_STATE_TEST_IMU:
       {
         ROBOT_TEST_IMU();
         break;
       }
 
-      // 状�??9：测试UART通信
+      // 鐘讹拷??9锛氭祴璇昒ART閫氫俊
       case ROBOT_STATE_TEST_UART:
       {
         ROBOT_TEST_UART();
         break;
       }
 
-      // 状�??10：测试初始化
+      // 鐘讹拷??10锛氭祴璇曞垵濮嬪寲
       case ROBOT_STATE_TEST_INIT:
       {
         ROBOT_TEST_INIT();
@@ -416,7 +416,7 @@ void Robot_State_Machine(void)
 
 void ROBOT_IDLE(void) 
 {
-  // 处理通过USB CDC收到并�?�过CRC校验的Nano关节目标�?
+  // 澶勭悊閫氳繃USB CDC鏀跺埌骞讹拷?锟借繃CRC鏍￠獙鐨凬ano鍏宠妭鐩爣锟�?
   JetsonRobotBridge_ProcessCommand();
 
   // if (imu_data_ready == 0x00) {
@@ -428,22 +428,22 @@ void ROBOT_IDLE(void)
   // else if (imu_data_ready== 0x03) {      
   //   imu_request_quat();
   // }
-  //汇�?�电机状态和IMU数据，使用与通信测试工程相同的帧协议上传Nano�?
+  //姹囷拷?锟界數鏈虹姸鎬佸拰IMU鏁版嵁锛屼娇鐢ㄤ笌閫氫俊娴嬭瘯宸ョ▼鐩稿悓鐨勫抚鍗忚涓婁紶Nano锟�?
   __disable_irq();
   uint16_t motor_status_ready_copy = motor_status_ready; 
   uint8_t imu_data_ready_copy = imu_data_ready; 
   __enable_irq();
-  if (motor_status_ready_copy == 0x0FFF && imu_data_ready_copy == 0x07) { // 假设12个电机都就绪且IMU数据都就�?????
-    if (JetsonRobotBridge_SendState() == USBD_OK) { // USB发�?�成�?
+  if (motor_status_ready_copy == 0x0FFF && imu_data_ready_copy == 0x07) { // 鍋囪12涓數鏈洪兘灏辩华涓擨MU鏁版嵁閮藉氨锟�?????
+    if (JetsonRobotBridge_SendState() == USBD_OK) { // USB鍙戯拷?锟芥垚锟�?
     __disable_irq();
-   // motor_status_ready = 0; // 重置计数
+   // motor_status_ready = 0; // 閲嶇疆璁℃暟
     imu_data_ready = 0;
     system_control_cycle ++;
     __enable_irq();
     }
   }
 
-  // 收到Nano发来的二维码动作指令，切换动作模�?????
+  // 鏀跺埌Nano鍙戞潵鐨勪簩缁寸爜鍔ㄤ綔鎸囦护锛屽垏鎹㈠姩浣滄ā锟�?????
   if(action_state != ACTION_IDLE)
   {
     robot_state = ROBOT_STATE_ACTION;
@@ -454,7 +454,7 @@ void ROBOT_IDLE(void)
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   }
   // if(system_control_warning >= 10 || motor_status_fault != 0 || motor_status_mode != 0x0FFF) {
-  //   robot_state = ROBOT_STATE_ERROR; // 如果连续3个周期没有正常控制，切换到异常状�?????
+  //   robot_state = ROBOT_STATE_ERROR; // 濡傛灉杩炵画3涓懆鏈熸病鏈夋甯告帶鍒讹紝鍒囨崲鍒板紓甯哥姸锟�?????
   //   LCD_ClearRect(10, 10, 240, 24);
   //   LCD_DisplayText(10, 10, "Mode : ERROR");
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
@@ -463,13 +463,13 @@ void ROBOT_IDLE(void)
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   // }
   if(imu_warning >=2 && imu_warning <=100) {
-  imu_change_to_request();                // 切到请求模式才能配置
+  imu_change_to_request();                // 鍒囧埌璇锋眰妯″紡鎵嶈兘閰嶇疆
   HAL_Delay(20);
   imu_set_active_mode_delay(10);          // 100Hz (10ms)
-  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=四元数, 0=欧拉角（6轴始终输出）
-  imu_save_parameters();                  // 保存到IMU内部Flash
+  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=鍥涘厓鏁�, 0=娆ф媺瑙掞紙6杞村缁堣緭鍑猴級
+  imu_save_parameters();                  // 淇濆瓨鍒癐MU鍐呴儴Flash
   HAL_Delay(20);
-  imu_change_to_active();                 // 切换到主动模式
+  imu_change_to_active();                 // 鍒囨崲鍒颁富鍔ㄦā寮�
   }
   if (imu_warning > 100) {
     imu_data_ready=0x07;
@@ -491,7 +491,7 @@ void ROBOT_ACTION(void)
 
 void ROBOT_HOLD(void)
 {
-  // 3秒时间到，切回正常运行模式，清空二维码指�?????
+  // 3绉掓椂闂村埌锛屽垏鍥炴甯歌繍琛屾ā寮忥紝娓呯┖浜岀淮鐮佹寚锟�?????
   if(HAL_GetTick() - action_timer >= 3000)
   {
     robot_state = ROBOT_STATE_IDLE;
@@ -507,32 +507,32 @@ void ROBOT_HOLD(void)
 
 void ROBOT_ERROR(void)
 {
-  // 处理异常状�?�下的数�?????
+  // 澶勭悊寮傚父鐘讹拷?锟戒笅鐨勬暟锟�?????
   for (int i = 0; i < 12; i++) {
     if(motor_status_fault & (1 << i)) {
-        // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发�?�控制命令等
+        // 杩欓噷鍙互娣诲姞閽堝鏈氨缁數鏈虹殑澶勭悊閫昏緫锛屼緥濡傞噸缃數鏈虹姸鎬佸苟閲嶆柊鍙戯拷?锟芥帶鍒跺懡浠ょ瓑
         EL05_Motor_Clear_Fault(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
         EL05_Motor_Enable(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
     }
   }
     for (int i = 0; i < 12; i++) {
     if(!(motor_status_mode & (1 << i))) {
-        // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发�?�控制命令等
+        // 杩欓噷鍙互娣诲姞閽堝鏈氨缁數鏈虹殑澶勭悊閫昏緫锛屼緥濡傞噸缃數鏈虹姸鎬佸苟閲嶆柊鍙戯拷?锟芥帶鍒跺懡浠ょ瓑
         EL05_Motor_Enable(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
     }
   }
     for (int i = 0; i < 12; i++) {
     if(!(motor_status_ready & (1 << i)) && system_control_warning >= 3) {
-        // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发�?�控制命令等
+        // 杩欓噷鍙互娣诲姞閽堝鏈氨缁數鏈虹殑澶勭悊閫昏緫锛屼緥濡傞噸缃數鏈虹姸鎬佸苟閲嶆柊鍙戯拷?锟芥帶鍒跺懡浠ょ瓑
         EL05_Motor_Enable(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
     }
   } 
     robot_state = ROBOT_STATE_IDLE;
     LCD_ClearRect(10, 10, 240, 24);
     LCD_DisplayText(10, 10, "Mode : IDLE");
-    system_control_warning = 0; // 重置警告计数
-    motor_status_fault = 0; // 重置电机故障标志
-    motor_status_mode = 0X0FFF; // 重置电机模式标志
+    system_control_warning = 0; // 閲嶇疆璀﹀憡璁℃暟
+    motor_status_fault = 0; // 閲嶇疆鐢垫満鏁呴殰鏍囧織
+    motor_status_mode = 0X0FFF; // 閲嶇疆鐢垫満妯″紡鏍囧織
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
@@ -551,10 +551,10 @@ void ROBOT_TEST(void)
 {
   if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
     HAL_Delay(200);
-    HAL_TIM_Base_Start_IT(&htim2); // 启动定时器中断（用于周期性任务）
+    HAL_TIM_Base_Start_IT(&htim2); // 鍚姩瀹氭椂鍣ㄤ腑鏂紙鐢ㄤ簬鍛ㄦ湡鎬т换鍔★級
   }
   if(controldata1ready == 1 && controldata1number == 1) {
-    controldata1ready = 0; // 重置数据就绪标志
+    controldata1ready = 0; // 閲嶇疆鏁版嵁灏辩华鏍囧織
     controldata1number = 0;
 
     EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, leg_control[0], 0.0f, 50.0f, 5.0f);
@@ -568,7 +568,7 @@ void ROBOT_TEST(void)
   }
     
   if(controldata1ready == 1 && controldata1number == 0) {
-    controldata1ready = 0; // 重置数据就绪标志
+    controldata1ready = 0; // 閲嶇疆鏁版嵁灏辩华鏍囧織
     controldata1number = 1;
 
     EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, leg_control[3], 0.0f, 50.0f, 5.0f);
@@ -580,7 +580,7 @@ void ROBOT_TEST(void)
     EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 50.0f, 5.0f);
   }
     
-    //发�?�电机状�?????
+    //鍙戯拷?锟界數鏈虹姸锟�?????
     __disable_irq();
     uint16_t motor_status_ready_copy = motor_status_ready;
     memcpy(&usb_tx_buffer[0], motor_status_buf, sizeof(motor_status_buf));
@@ -615,31 +615,31 @@ void ROBOT_TEST_IMU(void)
   if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
     HAL_Delay(200);
     memset(usb_tx_buffer, 0, sizeof(usb_tx_buffer));
-    HAL_TIM_Base_Start_IT(&htim2); // 启动定时器中断（用于周期性任务）
+    HAL_TIM_Base_Start_IT(&htim2); // 鍚姩瀹氭椂鍣ㄤ腑鏂紙鐢ㄤ簬鍛ㄦ湡鎬т换鍔★級
   }
   if(controldata1ready == 1 && controldata1number == 1) {
-    controldata1ready = 0; // 重置数据就绪标志
+    controldata1ready = 0; // 閲嶇疆鏁版嵁灏辩华鏍囧織
     controldata1number = 0;
 
     imu_request_accel();
   }
     
   if(controldata1ready == 1 && controldata1number == 0) {
-    controldata1ready = 0; // 重置数据就绪标志
+    controldata1ready = 0; // 閲嶇疆鏁版嵁灏辩华鏍囧織
     controldata1number = 1;
     
     imu_request_gyro();
     }
     
-    //发�?�IMU数据
+    //鍙戯拷?锟絀MU鏁版嵁
     __disable_irq();
     uint8_t imu_data_ready_copy = imu_data_ready; 
     memcpy(&usb_tx_buffer[48], imu_buf, sizeof(imu_buf)); 
     __enable_irq();
-    if (imu_data_ready_copy == 0x03) { // 假设IMU数据都就�?????
+    if (imu_data_ready_copy == 0x03) { // 鍋囪IMU鏁版嵁閮藉氨锟�?????
       if (CDC_Transmit_HS(&usb_tx_buffer[48], sizeof(imu_buf)+52) == USBD_OK) {
         __disable_irq();
-        imu_data_ready = 0; // 重置计数
+        imu_data_ready = 0; // 閲嶇疆璁℃暟
         __enable_irq();
       }
     }
@@ -687,7 +687,7 @@ void ROBOT_TEST_INIT(void)
     HAL_Delay(200);
     for (int i = 0; i < 12; i++) {
     if(motor_status_fault & (1 << i)) {
-        // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发�?�控制命令等
+        // 杩欓噷鍙互娣诲姞閽堝鏈氨缁數鏈虹殑澶勭悊閫昏緫锛屼緥濡傞噸缃數鏈虹姸鎬佸苟閲嶆柊鍙戯拷?锟芥帶鍒跺懡浠ょ瓑
         EL05_Motor_Clear_Fault(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
         EL05_Motor_Enable(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
       }
@@ -710,7 +710,7 @@ void BUTTON_CHANGE(void)
     
      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET) {
         if(button_pressed == 6) {
-          button_pressed = 0; // 防止溢出
+          button_pressed = 0; // 闃叉婧㈠嚭
         }
         else {
           button_pressed ++;
@@ -718,13 +718,13 @@ void BUTTON_CHANGE(void)
       }
       if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
         if(button_pressed == 0) {
-          button_pressed = 6; // 防止溢出
+          button_pressed = 6; // 闃叉婧㈠嚭
         }
         else {
           button_pressed --;
         }
       }
-      if(button_pressed == 0) {  // 按键0：正常模�?????
+      if(button_pressed == 0) {  // 鎸夐敭0锛氭甯告ā锟�?????
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : IDLE");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
@@ -732,7 +732,7 @@ void BUTTON_CHANGE(void)
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
-      else if(button_pressed == 1) {  // 按键1：设零位
+      else if(button_pressed == 1) {  // 鎸夐敭1锛氳闆朵綅
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : RESET");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
@@ -740,7 +740,7 @@ void BUTTON_CHANGE(void)
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
-      else if(button_pressed == 2) {  // 按键2：测�?????
+      else if(button_pressed == 2) {  // 鎸夐敭2锛氭祴锟�?????
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : TEST");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
@@ -748,7 +748,7 @@ void BUTTON_CHANGE(void)
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
-      else if(button_pressed == 3) { //动作测试
+      else if(button_pressed == 3) { //鍔ㄤ綔娴嬭瘯
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : TEST_ACTION");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
@@ -756,7 +756,7 @@ void BUTTON_CHANGE(void)
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
-      else if(button_pressed == 4) { // IMU测试
+      else if(button_pressed == 4) { // IMU娴嬭瘯
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : TEST_IMU");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
@@ -764,7 +764,7 @@ void BUTTON_CHANGE(void)
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
       }
-      else if(button_pressed == 5) { // UART测试
+      else if(button_pressed == 5) { // UART娴嬭瘯
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : TEST_UART");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
@@ -772,7 +772,7 @@ void BUTTON_CHANGE(void)
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
       }
-      else if(button_pressed == 6) { // INIT测试
+      else if(button_pressed == 6) { // INIT娴嬭瘯
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : TEST_INIT");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
@@ -821,13 +821,13 @@ void BUTTON_CHANGE(void)
 
 void Close_All_Old_Func(void)
 {
-    // 1. 关闭定时器中�?????
+    // 1. 鍏抽棴瀹氭椂鍣ㄤ腑锟�?????
 
-    // 3. 关闭串口发�?�和接收
+    // 3. 鍏抽棴涓插彛鍙戯拷?锟藉拰鎺ユ敹
     HAL_UART_Abort(&huart1);
     HAL_UART_Abort(&huart2);
 
-    // 5. 清空�?????有运行标志位
+    // 5. 娓呯┖锟�?????鏈夎繍琛屾爣蹇椾綅
     system_control_cycle = 0;
     system_control_cycle_copy = 0;
     system_control_warning = 0;  
@@ -872,7 +872,7 @@ void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, flo
   Goto_walklength[9] = (langle4 - leg_control[9]) / Goto_time;
   Goto_walklength[10] = (langle5 - leg_control[10]) / Goto_time;
   Goto_walklength[11] = (langle6 - leg_control[11]) / Goto_time;
-  HAL_TIM_Base_Start_IT(&htim4); // 启动定时器中断（用于周期性任务）
+  HAL_TIM_Base_Start_IT(&htim4); // 鍚姩瀹氭椂鍣ㄤ腑鏂紙鐢ㄤ簬鍛ㄦ湡鎬т换鍔★級
   while(Goto_number < Goto_time) {
     if(Goto_ready){
       Goto_ready = 0;
@@ -901,7 +901,7 @@ void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, flo
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM2) {
-        controldata1ready = 1; // 设置数据就绪标志
+        controldata1ready = 1; // 璁剧疆鏁版嵁灏辩华鏍囧織
         leg_control[0] += walklength1*1;                                //0  1  0  -1  0 
         leg_control[1] += -walklength2*0.2;                                //0  -1  0  -1  0
         leg_control[2] += walklength1*0;                                    //0  0  0  0  0
@@ -918,12 +918,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
         if (leg_control[0] > 0.4f)
         {
-            walklength1 = -walklength1; // 反转步长方向                         //0  -1  0  -1  0
+            walklength1 = -walklength1; // 鍙嶈浆姝ラ暱鏂瑰悜                         //0  -1  0  -1  0
             walklength2 = -walklength2;                                        //0   1  0   1  0
         } 
         else if (leg_control[0] < -0.4f)
         {
-            walklength1 = -walklength1; // 反转步长方向
+            walklength1 = -walklength1; // 鍙嶈浆姝ラ暱鏂瑰悜
             walklength2 = -walklength2;
         }
         if (leg_control[0] <= 1e-6f)
@@ -934,22 +934,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
   if (htim->Instance == TIM3 && robot_state == ROBOT_STATE_IDLE) {
     if (system_control_cycle == system_control_cycle_copy) {
-        system_control_warning ++; // 如果周期计数没有增加，设置警告标�?????
+        system_control_warning ++; // 濡傛灉鍛ㄦ湡璁℃暟娌℃湁澧炲姞锛岃缃鍛婃爣锟�?????
     } else {
-        system_control_warning = 0; // 周期正常，清除警告标�?????
+        system_control_warning = 0; // 鍛ㄦ湡姝ｅ父锛屾竻闄よ鍛婃爣锟�?????
     }
     system_control_cycle_copy = system_control_cycle;
     if (imu_data_count == imu_data_count_copy) {
-        imu_warning ++; // 如果周期计数没有增加，设置警告标?????
+        imu_warning ++; // 濡傛灉鍛ㄦ湡璁℃暟娌℃湁澧炲姞锛岃缃鍛婃爣?????
     } else {
-        imu_warning = 0; // 周期正常，清除警告标?????
+        imu_warning = 0; // 鍛ㄦ湡姝ｅ父锛屾竻闄よ鍛婃爣?????
     }
     imu_data_count_copy = imu_data_count;
   }
 
   if (htim->Instance == TIM4) {
-        Goto_ready = 1; // 设置数据就绪标志
-        Goto_number++; // 增加 goto 计数
+        Goto_ready = 1; // 璁剧疆鏁版嵁灏辩华鏍囧織
+        Goto_number++; // 澧炲姞 goto 璁℃暟
         leg_control[0] += Goto_walklength[0];                                
         leg_control[1] += Goto_walklength[1];                               
         leg_control[2] += Goto_walklength[2];                                  
@@ -974,7 +974,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
               uart_start1 = 1;
           }
           else if(uart_rx_buf1[uart_count1] == 0xee && uart_start1 == 1) {
-              uart_ready1 = 1; // 设置数据就绪标志
+              uart_ready1 = 1; // 璁剧疆鏁版嵁灏辩华鏍囧織
               uart_start1 = 0;
               memcpy(uart_rx_data1, uart_rx_buf1, uart_count1);
           }
@@ -985,7 +985,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
               uart_count1 = 0;
               uart_start1 = 0;
           }
-        // 重新启动 UART 接收中断
+        // 閲嶆柊鍚姩 UART 鎺ユ敹涓柇
         HAL_UART_Receive_IT(&huart1, &uart_rx_buf1[uart_count1], 1);
     }
     if (huart->Instance == USART2) {
@@ -1013,7 +1013,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
               uart_count2 = 0;
               uart_start2 = 0;
           }
-        // 重新启动 UART 接收中断
+        // 閲嶆柊鍚姩 UART 鎺ユ敹涓柇
         HAL_UART_Receive_IT(&huart2, &uart_rx_buf2[uart_count2], 1);
     }
 }
