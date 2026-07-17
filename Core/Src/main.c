@@ -238,6 +238,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  HAL_Delay(2000);
   while (1)
   {
     BUTTON_CHANGE(); 
@@ -416,7 +417,7 @@ void ROBOT_IDLE(void)
   if (motor_status_ready_copy == 0x0FFF && imu_data_ready_copy == 0x07) { // 假设12个电机都就绪且IMU数据都就�?????
     if (JetsonRobotBridge_SendState() == USBD_OK) { // USB发�?�成�?
     __disable_irq();
-    motor_status_ready = 0; // 重置计数
+    //motor_status_ready = 0; // 重置计数
     imu_data_ready = 0;
     system_control_cycle ++;
     __enable_irq();
