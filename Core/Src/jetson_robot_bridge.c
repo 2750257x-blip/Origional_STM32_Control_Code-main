@@ -72,8 +72,8 @@ static void apply_position_targets(const RobotCommandPayload *command)
         r_leg_pitch, r_leg_roll, r_leg_yaw,
         r_knee_pitch, r_ankle_pitch, r_ankle_roll
     };
-    float kp_scale = limit_gain_scale(command->kp_scale);
-    float kd_scale = limit_gain_scale(command->kd_scale);
+    float kp_scale = 1;
+    float kd_scale = 1;
     uint8_t index;
 
     for (index = 0U; index < 6U; ++index) {
