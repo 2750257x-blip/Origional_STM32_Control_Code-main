@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #define PROTOCOL_MAGIC              0xA55AU
-#define PROTOCOL_VERSION            1U
+#define PROTOCOL_VERSION            2U
 #define PROTOCOL_NUM_JOINTS         12U
 #define PROTOCOL_MSG_STATE          1U
 #define PROTOCOL_MSG_COMMAND        2U
@@ -36,6 +36,7 @@ typedef struct {
     float joint_velocity[PROTOCOL_NUM_JOINTS];
     float accel_m_s2[3];
     float gyro_rad_s[3];
+    float orientation_wxyz[4];
     uint32_t status_flags;
 } RobotStatePayload;
 
@@ -57,7 +58,7 @@ extern volatile uint32_t g_debug_crc_error_count;
 #pragma pack(pop)
 
 _Static_assert(sizeof(ProtocolHeader) == 8U, "ProtocolHeader wire size must be 8 bytes");
-_Static_assert(sizeof(RobotStatePayload) == 128U, "RobotStatePayload wire size must be 128 bytes");
+_Static_assert(sizeof(RobotStatePayload) == 144U, "RobotStatePayload wire size must be 144 bytes");
 _Static_assert(sizeof(RobotCommandPayload) == 64U, "RobotCommandPayload wire size must be 64 bytes");
 
 void Protocol_Init(void);
