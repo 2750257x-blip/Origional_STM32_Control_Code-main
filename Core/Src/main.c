@@ -218,8 +218,8 @@ int main(void)
   HAL_Delay(20);
   imu_change_to_active();                 // 切换到主动模�?
   HAL_Delay(20);
-  imu_set_zero();                         // 清零四元数，使复位后姿态归零
-  HAL_Delay(20);
+  /* Preserve gravity-referenced roll and pitch. Zeroing at each boot would
+     make a tilted startup pose appear level and corrupt projected gravity. */
 
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);    // 启动PWM信号输出（舵机控制）
   SPI_LCD_Init();			// SPI LCD屏幕初始�????
@@ -429,7 +429,9 @@ void ROBOT_IDLE(void)
   uint16_t motor_status_ready_copy = motor_status_ready; 
   uint8_t imu_data_ready_copy = imu_data_ready; 
   __enable_irq();
-  if (motor_status_ready_copy == 0x0FFF && imu_data_ready_copy == 0x07) { // 假设12个电机都就绪且IMU数据都就�??????
+  if (motor_status_ready_copy == 0x0FFF &&
+      (imu_data_ready_copy & IMU_DATA_REQUIRED) == IMU_DATA_REQUIRED &&
+      IMU_DataIsFresh(HAL_GetTick(), 50U)) {
     if (JetsonRobotBridge_SendState() == USBD_OK) { // USB发�?�成�??
     __disable_irq();
    // motor_status_ready = 0; // 重置计数
@@ -466,9 +468,6 @@ void ROBOT_IDLE(void)
   imu_save_parameters();                  // 保存到IMU内部Flash
   HAL_Delay(20);
   imu_change_to_active();                 // 切换到主动模�?
-  }
-  if (imu_warning > 100) {
-    imu_data_ready=0x07;
   }
 }
 
