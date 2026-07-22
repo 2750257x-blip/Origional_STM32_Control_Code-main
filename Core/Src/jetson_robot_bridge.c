@@ -12,6 +12,7 @@
 #include <string.h>
 
 #define JETSON_COMMAND_WATCHDOG_MS 100U
+#define IMU_FRESHNESS_MS           50U
 #define MAX_GAIN_SCALE             2.0f
 
 static uint32_t last_applied_command_count;
@@ -213,7 +214,7 @@ void JetsonRobotBridge_ProcessCommand(void)
 uint8_t JetsonRobotBridge_SendState(void)
 {
     RobotStatePayload state;
-    float feedback[30];
+    float feedback[34];
     uint16_t ready_flags;
     uint16_t fault_flags;
     uint16_t mode_flags;
@@ -268,6 +269,7 @@ uint8_t JetsonRobotBridge_SendState(void)
     }
     memcpy(state.accel_m_s2, &feedback[24], sizeof(state.accel_m_s2));
     memcpy(state.gyro_rad_s, &feedback[27], sizeof(state.gyro_rad_s));
+    memcpy(state.orientation_wxyz, &feedback[30], sizeof(state.orientation_wxyz));
 
     if (mode_flags == 0x0FFFU) {
         state.status_flags |= STATE_MOTORS_ENABLED;
@@ -275,7 +277,8 @@ uint8_t JetsonRobotBridge_SendState(void)
     if (fault_flags != 0U) {
         state.status_flags |= STATE_FAULT;
     }
-    if ((imu_flags & 0x03U) == 0x03U) {
+    if (((imu_flags & IMU_DATA_REQUIRED) == IMU_DATA_REQUIRED) &&
+        IMU_DataIsFresh(HAL_GetTick(), IMU_FRESHNESS_MS)) {
         state.status_flags |= STATE_IMU_VALID;
     }
     if (ready_flags == 0x0FFFU) {
