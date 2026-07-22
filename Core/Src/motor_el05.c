@@ -266,18 +266,18 @@ void EL05_Motor_TX(FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id)
 void motor_setzero()
 {
   EL05_Motor_SetZero(&hfdcan1, r_leg_pitch);
-  EL05_Motor_SetZero(&hfdcan1, r_leg_roll);
-  EL05_Motor_SetZero(&hfdcan1, r_leg_yaw);
-  EL05_Motor_SetZero(&hfdcan1, r_knee_pitch);
-  EL05_Motor_SetZero(&hfdcan1, r_ankle_pitch);
-  EL05_Motor_SetZero(&hfdcan1, r_ankle_roll);
+  // EL05_Motor_SetZero(&hfdcan1, r_leg_roll);
+  // EL05_Motor_SetZero(&hfdcan1, r_leg_yaw);
+  // EL05_Motor_SetZero(&hfdcan1, r_knee_pitch);
+  // EL05_Motor_SetZero(&hfdcan1, r_ankle_pitch);
+  // EL05_Motor_SetZero(&hfdcan1, r_ankle_roll);
 
   EL05_Motor_SetZero(&hfdcan2, l_leg_pitch );
-  EL05_Motor_SetZero(&hfdcan2, l_leg_roll);
-  EL05_Motor_SetZero(&hfdcan2, l_leg_yaw);
-  EL05_Motor_SetZero(&hfdcan2, l_knee_pitch);
-  EL05_Motor_SetZero(&hfdcan2, l_ankle_pitch);
-  EL05_Motor_SetZero(&hfdcan2, l_ankle_roll);
+  // EL05_Motor_SetZero(&hfdcan2, l_leg_roll);
+  // EL05_Motor_SetZero(&hfdcan2, l_leg_yaw);
+  // EL05_Motor_SetZero(&hfdcan2, l_knee_pitch);
+  // EL05_Motor_SetZero(&hfdcan2, l_ankle_pitch);
+  // EL05_Motor_SetZero(&hfdcan2, l_ankle_roll);
 }
 
 void motor_enable()

@@ -16,13 +16,24 @@
 
 static uint32_t last_applied_command_count;
 
+/* ---- 反馈前向预测滤波 ---- */
+#define SMOOTHING_ALPHA         0.0f     /* 0~1: 越大越跟随预测值 */
+#define FRAME_ANGLE_LIMIT       0.5f     /* 反馈偏离目标的最大单帧变化 (rad) */
+#define MAX_PREDICT_DT_MS       50U      /* 预测Δt上限 (ms)，防止卡顿时跳变 */
+
+/* Nano 下发的目标位置，用作平滑参考（无滞后、无噪声） */
+static float target_position[PROTOCOL_NUM_JOINTS];
+static uint32_t last_send_tick_ms;
+
 volatile float g_debug_motor_target[PROTOCOL_NUM_JOINTS];
 volatile uint8_t g_debug_jetson_control_active;
 volatile uint32_t g_debug_watchdog_trip_count;
 volatile uint32_t g_debug_invalid_command_count;
+
+extern volatile uint32_t system_control_cycle;
  
-const float kp_add = 4.0f;
-const float kd_add = 1.0f;
+const float kp_add = 1.5f;
+const float kd_add = 2.0f;
 static float limit_gain_scale(float scale)
 {
     if (!isfinite(scale) || (scale < 0.0f)) {
@@ -59,10 +70,10 @@ static bool command_targets_are_valid(const RobotCommandPayload *command)
 static void apply_position_targets(const RobotCommandPayload *command)
 {
     static const float base_kp[6] = {
-        35.0f, 30.0f, 20.0f, 35.0f, 15.0f, 12.0f
+        40.0f, 40.0f, 40.0f, 40.0f, 40.0f, 40.0f
     };
     static const float base_kd[6] = {
-        1.5f, 1.2f, 1.0f, 1.5f, 0.8f, 0.7f
+        2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f
     };
     static const uint8_t left_motor_id[6] = {
         l_leg_pitch, l_leg_roll, l_leg_yaw,
@@ -72,12 +83,20 @@ static void apply_position_targets(const RobotCommandPayload *command)
         r_leg_pitch, r_leg_roll, r_leg_yaw,
         r_knee_pitch, r_ankle_pitch, r_ankle_roll
     };
-    float kp_scale = limit_gain_scale(command->kp_scale);
-    float kd_scale = limit_gain_scale(command->kd_scale);
+    // float kp_scale = limit_gain_scale(command->kp_scale);
+    // float kd_scale = limit_gain_scale(command->kd_scale);
+    float kp_scale = 1.0f;
+    float kd_scale = 1.0f;
     uint8_t index;
 
     for (index = 0U; index < 6U; ++index) {
         float target = motor_direction_target(index, command->joint_target[index]);
+        // if(index == 1U) {
+        //     target = target + 0.05f;
+        // }
+        //  if(index == 0U) {
+        //     target = target - 0.15f;
+        // }
         g_debug_motor_target[index] = target;
         Motor_limitCtrl_float(
             &hfdcan2,
@@ -93,6 +112,12 @@ static void apply_position_targets(const RobotCommandPayload *command)
         float target = motor_direction_target(
             protocol_index,
             command->joint_target[protocol_index]);
+        // if(index == 1U) {
+        //     target = target - 0.05f;
+        // }
+        // if(index == 0U) {
+        //     target = target +  0.15f;
+        // }    
         g_debug_motor_target[protocol_index] = target;
         Motor_limitCtrl_float(
             &hfdcan1,
@@ -102,6 +127,7 @@ static void apply_position_targets(const RobotCommandPayload *command)
             base_kp[index] * kp_add * kp_scale,
             base_kd[index] * kd_add * kd_scale);
     }
+    system_control_cycle ++;
 }
 
 static void stop_all_motors(void)
@@ -122,6 +148,8 @@ void JetsonRobotBridge_Init(void)
     g_debug_jetson_control_active = 0U;
     g_debug_watchdog_trip_count = 0U;
     g_debug_invalid_command_count = 0U;
+    memset(target_position, 0, sizeof(target_position));
+    last_send_tick_ms = HAL_GetTick();
 }
 
 void JetsonRobotBridge_ProcessCommand(void)
@@ -179,6 +207,7 @@ void JetsonRobotBridge_ProcessCommand(void)
         g_debug_jetson_control_active = 1U;
     }
     apply_position_targets(&command);
+    memcpy(target_position, command.joint_target, sizeof(target_position));
 }
 
 uint8_t JetsonRobotBridge_SendState(void)
@@ -202,11 +231,40 @@ uint8_t JetsonRobotBridge_SendState(void)
     __enable_irq();
 
     state.timestamp_us = HAL_GetTick() * 1000U;
+
+    /* Δt 用于速度外推：距上次发送的时间差，上限保护防跳变 */
+    uint32_t now_tick = HAL_GetTick();
+    uint32_t delta_t_ms = now_tick - last_send_tick_ms;
+    if (delta_t_ms > MAX_PREDICT_DT_MS) delta_t_ms = 0U;  // 首次或卡顿时不预测
+    last_send_tick_ms = now_tick;
+    float delta_t = (float)delta_t_ms * 0.001f;
+
     for (index = 0U; index < PROTOCOL_NUM_JOINTS; ++index) {
         float sign = ((index == 0U) || (index == 4U) ||
                       (index == 6U) || (index == 10U)) ? -1.0f : 1.0f;
-        state.joint_position[index] = sign * feedback[index * 2U];
-        state.joint_velocity[index] = sign * feedback[index * 2U + 1U];
+
+        /* 原始反馈（已转模型坐标系） */
+        float raw_pos = sign * feedback[index * 2U];
+        float raw_vel = sign * feedback[index * 2U + 1U];
+
+        /* 1. 速度外推 — 补偿1帧滞后：p_pred = p_raw + v * Δt */
+        float predicted = raw_pos + raw_vel * delta_t;
+
+        /* 2. 向目标位置平滑 — 以外推为主，以目标为参考抑制噪声 */
+        // float corrected = SMOOTHING_ALPHA * predicted
+        //                 + (1.0f - SMOOTHING_ALPHA) * target_position[index];
+        float corrected = SMOOTHING_ALPHA * predicted
+                        + (1.0f - SMOOTHING_ALPHA) * raw_pos;
+
+
+        /* 3. 单帧限幅 — 反馈偏离目标不超过限制值，过滤跳变 */
+        float delta = corrected - target_position[index];
+        if (delta > FRAME_ANGLE_LIMIT)  delta = FRAME_ANGLE_LIMIT;
+        if (delta < -FRAME_ANGLE_LIMIT) delta = -FRAME_ANGLE_LIMIT;
+        corrected = target_position[index] + delta;
+
+        state.joint_position[index] = corrected;
+        state.joint_velocity[index] = raw_vel;
     }
     memcpy(state.accel_m_s2, &feedback[24], sizeof(state.accel_m_s2));
     memcpy(state.gyro_rad_s, &feedback[27], sizeof(state.gyro_rad_s));
