@@ -20,6 +20,7 @@
 #include "main.h"
 #include "fdcan.h"
 #include "spi.h"
+#include "stm32h7xx_hal.h"
 #include "tim.h"
 #include "usart.h"
 #include "usb_device.h"
@@ -45,9 +46,9 @@
 typedef enum
 {
     ROBOT_STATE_IDLE = 0,    // 正常运行：上位机正常控电机上传IMU数据
-    ROBOT_STATE_ACTION,          // 执行二维码识别对应动�??????
-    ROBOT_STATE_HOLD,          // 动作完成 停留3�??????
-    ROBOT_STATE_ERROR,           // 异常状�??
+    ROBOT_STATE_LHAND,          // 执行二维码识别对应动�??????
+    ROBOT_STATE_RHAND,          // 动作完成 停留3�??????
+    ROBOT_STATE_HEAD,           // 异常状�??
     ROBOT_STATE_RESET,            // 测试状�??
     ROBOT_STATE_TEST,            // 测试状�??
     ROBOT_STATE_TEST_ACTION,      // 测试状�??
@@ -71,7 +72,7 @@ typedef enum
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-Robot_StateTypeDef robot_state = ROBOT_STATE_IDLE;
+Robot_StateTypeDef robot_state = ROBOT_STATE_IDLE;   //  \o/  \o/  \o/  \o/  \o/  
 uint8_t button_pressed = 0;
 uint8_t button_pressed_last = 0;
 uint16_t action_timer = 0;
@@ -127,9 +128,9 @@ void Close_All_Old_Func(void);
 void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, float rangle5, float rangle6, float langle1, float langle2, float langle3, float langle4, float langle5, float langle6, uint8_t Goto_time);
 
 void ROBOT_IDLE(void);    
-void ROBOT_ACTION(void);
-void ROBOT_HOLD(void);
-void ROBOT_ERROR(void);
+void ROBOT_RHAND(void);
+void ROBOT_LHAND(void);
+void ROBOT_HEAD(void);
 void ROBOT_RESET(void);
 void ROBOT_TEST(void);
 void ROBOT_TEST_ACTION(void);
@@ -222,6 +223,8 @@ int main(void)
      make a tilted startup pose appear level and corrupt projected gravity. */
 
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);    // 启动PWM信号输出（舵机控制）
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);    // 启动PWM信号输出（舵机控制）
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);    // 启动PWM信号输出（舵机控制）
   SPI_LCD_Init();			// SPI LCD屏幕初始�????
   motor_enable();
   HAL_Delay(100);
@@ -246,13 +249,14 @@ int main(void)
   }
 
   //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-  Action_Goto(0.20f, 0.0f, 0.0f, -0.30f, -0.15f, 0.0f, -0.20f, 0.0f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
+  Action_Goto(0.22f, 0.0f, 0.0f, -0.30f, -0.15f, 0.0f, -0.22f, 0.0f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   //Action_Goto(0.15f, 0.05f, 0.0f, -0.30f, -0.15f, 0.0f, -0.15f, -0.05f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   system_control_warning = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  imu_set_zero();                         // 娓呴浂鍥涘厓鏁帮紝浣垮浣嶅悗濮挎€佸綊闆�
   HAL_Delay(500);
   while (1)
   {
@@ -335,27 +339,29 @@ void Robot_State_Machine(void)
       case ROBOT_STATE_IDLE:
       {
         ROBOT_IDLE();
+        // Servo_SetAngle(&htim1, TIM_CHANNEL_1, (uint8_t)(180-(MotorIMU_Packet_float[12]/3+30)));
+        // Servo_SetAngle(&htim1, TIM_CHANNEL_2, (uint8_t)(MotorIMU_Packet_float[0]/3+30));
         break;
       }
 
       // 状�??2：执行二维码识别对应的预设动作，动作完成后切到停留模�??????
-      case ROBOT_STATE_ACTION:
+      case ROBOT_STATE_RHAND:
       {
-        ROBOT_ACTION();
+        ROBOT_RHAND();
         break;
       }
 
       // 状�??3：非阻塞停留3秒，全程不卡200Hz主循环，3秒后切回正常模式
-      case ROBOT_STATE_HOLD:
+      case ROBOT_STATE_LHAND:
       {
-        ROBOT_HOLD();
+        ROBOT_LHAND();
         break;
       }
 
       // 状�??4：异常状�?????? 自动切回正常模式
-      case ROBOT_STATE_ERROR:
+      case ROBOT_STATE_HEAD:
       {
-        ROBOT_ERROR();
+        ROBOT_HEAD();
         break;
       }
 
@@ -442,15 +448,15 @@ void ROBOT_IDLE(void)
   }
 
   // 收到Nano发来的二维码动作指令，切换动作模�??????
-  if(action_state != ACTION_IDLE)
-  {
-    robot_state = ROBOT_STATE_ACTION;
-    LCD_DisplayText(10, 10, "Mode : ACTION");
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-  }
+  // if(action_state != ACTION_IDLE)
+  // {
+  //   robot_state = ROBOT_STATE_ACTION;
+  //   LCD_DisplayText(10, 10, "Mode : ACTION");
+  //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
+  //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
+  //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
+  //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+  // }
   // if(system_control_warning >= 10 || motor_status_fault != 0 || motor_status_mode != 0x0FFF) {
   //   robot_state = ROBOT_STATE_ERROR; // 如果连续3个周期没有正常控制，切换到异常状�??????
   //   LCD_ClearRect(10, 10, 240, 24);
@@ -471,67 +477,69 @@ void ROBOT_IDLE(void)
   }
 }
 
-void ROBOT_ACTION(void)
+void ROBOT_RHAND(void)
 {
-  QRCode_State_Machine();
-  action_timer = HAL_GetTick();
-  robot_state = ROBOT_STATE_HOLD;
   LCD_ClearRect(10, 10, 240, 24);
-  LCD_DisplayText(10, 10, "Mode : HOLD");
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
+  LCD_DisplayText(10, 10, "Mode : RHAND");
+  // Servo_SetAngle(&htim1, TIM_CHANNEL_1, 0);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+  HAL_Delay(3000);
+   // Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
+  LCD_ClearRect(10, 10, 240, 24);
+  LCD_DisplayText(0, 10, "Mode : IDLE");
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
 }
 
-void ROBOT_HOLD(void)
+void ROBOT_LHAND(void)
 {
-  // 3秒时间到，切回正常运行模式，清空二维码指�??????
-  if(HAL_GetTick() - action_timer >= 3000)
-  {
-    robot_state = ROBOT_STATE_IDLE;
-    action_state = ACTION_IDLE;
-    LCD_ClearRect(10, 10, 240, 24);
-    LCD_DisplayText(0, 10, "Mode : IDLE");
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-  }
+  LCD_ClearRect(10, 10, 240, 24);
+  LCD_DisplayText(10, 10, "Mode : LHAND");
+  // Servo_SetAngle(&htim1, TIM_CHANNEL_2, 180);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+  HAL_Delay(3000);
+   // Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
+  LCD_ClearRect(10, 10, 240, 24);
+  LCD_DisplayText(0, 10, "Mode : IDLE");
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
 }
 
-void ROBOT_ERROR(void)
+void ROBOT_HEAD(void)
 {
-  // 处理异常状�?�下的数�??????
-  for (int i = 0; i < 12; i++) {
-    if(motor_status_fault & (1 << i)) {
-        // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发�?�控制命令等
-        EL05_Motor_Clear_Fault(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
-        EL05_Motor_Enable(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
-    }
-  }
-    for (int i = 0; i < 12; i++) {
-    if(!(motor_status_mode & (1 << i))) {
-        // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发�?�控制命令等
-        EL05_Motor_Enable(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
-    }
-  }
-    for (int i = 0; i < 12; i++) {
-    if(!(motor_status_ready & (1 << i)) && system_control_warning >= 3) {
-        // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发�?�控制命令等
-        EL05_Motor_Enable(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
-    }
-  } 
-    robot_state = ROBOT_STATE_IDLE;
-    LCD_ClearRect(10, 10, 240, 24);
-    LCD_DisplayText(10, 10, "Mode : IDLE");
-    system_control_warning = 0; // 重置警告计数
-    motor_status_fault = 0; // 重置电机故障标志
-    motor_status_mode = 0X0FFF; // 重置电机模式标志
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+  LCD_ClearRect(10, 10, 240, 24);
+  LCD_DisplayText(10, 10, "Mode : HEAD");
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+  // Servo_SetAngle(&htim1, TIM_CHANNEL_3, 0);
+  HAL_Delay(600);
+   // Servo_SetAngle(&htim1, TIM_CHANNEL_3, 180);
+  HAL_Delay(600);
+   // Servo_SetAngle(&htim1, TIM_CHANNEL_3, 0);
+  HAL_Delay(600);
+   // Servo_SetAngle(&htim1, TIM_CHANNEL_3, 180);
+  HAL_Delay(600);
+   // Servo_SetAngle(&htim1, TIM_CHANNEL_3, 0);
+  HAL_Delay(600);
+   // Servo_SetAngle(&htim1, TIM_CHANNEL_2, 90);
+  LCD_ClearRect(10, 10, 240, 24);
+  LCD_DisplayText(0, 10, "Mode : IDLE");
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
 }
 
 void ROBOT_RESET(void)
