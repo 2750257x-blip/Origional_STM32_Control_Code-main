@@ -46,11 +46,11 @@
 typedef enum
 {
     ROBOT_STATE_IDLE = 0,    // 正常运行：上位机正常控电机上传IMU数据
-    ROBOT_STATE_LHAND,          // 执行二维码识别对应动�??????
-    ROBOT_STATE_RHAND,          // 动作完成 停留3�??????
-    ROBOT_STATE_HEAD,           // 异常状�??
+    ROBOT_STATE_RHAND,          // 执行二维码识别对应动�??????
+    ROBOT_STATE_LHAND,          
+    ROBOT_STATE_BOTHH,            
+    ROBOT_STATE_HEAD,          
     ROBOT_STATE_RESET,            // 测试状�??
-    ROBOT_STATE_TEST,            // 测试状�??
     ROBOT_STATE_TEST_ACTION,      // 测试状�??
     ROBOT_STATE_TEST_IMU,         // 测试状�??
     ROBOT_STATE_TEST_UART,            // 测试状�??
@@ -132,7 +132,7 @@ void ROBOT_RHAND(void);
 void ROBOT_LHAND(void);
 void ROBOT_HEAD(void);
 void ROBOT_RESET(void);
-void ROBOT_TEST(void);
+void ROBOT_BOTHH(void);
 void ROBOT_TEST_ACTION(void);
 void ROBOT_TEST_IMU(void);
 void ROBOT_TEST_UART(void);
@@ -373,9 +373,9 @@ void Robot_State_Machine(void)
       }
 
       // 状�??6：测试状�??????
-      case ROBOT_STATE_TEST:
+      case ROBOT_STATE_BOTHH:
       {
-        ROBOT_TEST();
+        ROBOT_BOTHH();
         break;
       }
 
@@ -551,51 +551,25 @@ void ROBOT_RESET(void)
     }
 }
 
-void ROBOT_TEST(void)
+void ROBOT_BOTHH(void)
 {
-  if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
-    HAL_Delay(200);
-    HAL_TIM_Base_Start_IT(&htim2); // 启动定时器中断（用于周期性任务）
-  }
-  if(controldata1ready == 1 && controldata1number == 1) {
-    controldata1ready = 0; // 重置数据就绪标志
-    controldata1number = 0;
-
-    EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, leg_control[0], 0.0f, 50.0f, 5.0f);
-    EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, leg_control[1], 0.0f, 50.0f, 5.0f);
-    EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, leg_control[2], 0.0f, 50.0f, 5.0f);
-    
-    EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, leg_control[6], 0.0f, 50.0f, 5.0f);
-    EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, leg_control[7], 0.0f, 50.0f, 5.0f);
-    EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, leg_control[8], 0.0f, 50.0f, 5.0f);
-
-  }
-    
-  if(controldata1ready == 1 && controldata1number == 0) {
-    controldata1ready = 0; // 重置数据就绪标志
-    controldata1number = 1;
-
-    EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, leg_control[3], 0.0f, 50.0f, 5.0f);
-    EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, leg_control[4], 0.0f, 50.0f, 5.0f);
-    EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, leg_control[5], 0.0f, 50.0f, 5.0f);
-
-    EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, leg_control[9], 0.0f, 50.0f, 5.0f);
-    EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 50.0f, 5.0f);
-    EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 50.0f, 5.0f);
-  }
-    
-    //发�?�电机状�??????
-    __disable_irq();
-    uint16_t motor_status_ready_copy = motor_status_ready;
-    memcpy(&usb_tx_buffer[0], motor_status_buf, sizeof(motor_status_buf));
-    __enable_irq();
-    if (motor_status_ready_copy == 0x3F) { 
-      if (CDC_Transmit_HS(&usb_tx_buffer[0], sizeof(motor_status_buf)) == USBD_OK) {
-        __disable_irq();
-        motor_status_ready = 0;
-        __enable_irq();
-      }
-    }
+  LCD_ClearRect(10, 10, 240, 24);
+  LCD_DisplayText(10, 10, "Mode : RHAND");
+  Servo_SetAngle(&htim1, TIM_CHANNEL_1, 0);
+    Servo_SetAngle(&htim1, TIM_CHANNEL_2, 180);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+  HAL_Delay(3200);
+  Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
+  Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
+  LCD_ClearRect(10, 10, 240, 24);
+  LCD_DisplayText(0, 10, "Mode : IDLE");
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
 }
 
 void ROBOT_TEST_ACTION(void)
@@ -799,7 +773,7 @@ void BUTTON_CHANGE(void)
         robot_state = ROBOT_STATE_RESET;
         break;
       case 2:
-        robot_state = ROBOT_STATE_TEST;
+        robot_state = ROBOT_STATE_BOTHH;
         Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
         break;
       case 3:
