@@ -16,25 +16,25 @@
 #define T_MIN        -6.0f      //力矩范围
 #define T_MAX        6.0f       //力矩范围
 
-// 各关节安全限位（根据实际机械结构设定）
+// 各关节安全限位（根据实际机械结构设定）rad
 // leg_pitch: 大腿前后摆动
-#define SAFE_LEG_PITCH_MIN   -1.6f
-#define SAFE_LEG_PITCH_MAX    1.6f
+#define SAFE_LEG_PITCH_MIN   -2.0f
+#define SAFE_LEG_PITCH_MAX    2.0f
 // leg_roll: 大腿侧摆
-#define SAFE_LEG_ROLL_MIN    -0.5f
-#define SAFE_LEG_ROLL_MAX     0.5f
+#define SAFE_LEG_ROLL_MIN    -1.5f
+#define SAFE_LEG_ROLL_MAX     1.5f
 // leg_yaw: 大腿旋转
-#define SAFE_LEG_YAW_MIN     -1.0f
-#define SAFE_LEG_YAW_MAX      1.0f
+#define SAFE_LEG_YAW_MIN     -1.5f
+#define SAFE_LEG_YAW_MAX      1.5f
 // knee_pitch: 膝盖弯曲（通常只能向后弯）
-#define SAFE_KNEE_MIN         -1.6f
-#define SAFE_KNEE_MAX         1.6f
+#define SAFE_KNEE_MIN         -2.0f
+#define SAFE_KNEE_MAX         2.0
 // ankle_pitch: 脚踝前后
-#define SAFE_ANKLE_PITCH_MIN -1.0f
-#define SAFE_ANKLE_PITCH_MAX  1.0f
+#define SAFE_ANKLE_PITCH_MIN -1.5f
+#define SAFE_ANKLE_PITCH_MAX  1.5f
 // ankle_roll: 脚踝侧向
-#define SAFE_ANKLE_ROLL_MIN  -0.5f
-#define SAFE_ANKLE_ROLL_MAX   0.5f
+#define SAFE_ANKLE_ROLL_MIN  -1.5f
+#define SAFE_ANKLE_ROLL_MAX   1.5f
 
 #define MASTER_ID    0xFD    // 主机CAN ID，固定0xFD
 

@@ -46,15 +46,15 @@
 typedef enum
 {
     ROBOT_STATE_IDLE = 0,    // 正常运行：上位机正常控电机上传IMU数据
-    ROBOT_STATE_RHAND,          // 执行二维码识别对应动�??????
-    ROBOT_STATE_LHAND,          
-    ROBOT_STATE_BOTHH,            
-    ROBOT_STATE_HEAD,          
-    ROBOT_STATE_RESET,            // 测试状�??
-    ROBOT_STATE_TEST_ACTION,      // 测试状�??
-    ROBOT_STATE_TEST_IMU,         // 测试状�??
-    ROBOT_STATE_TEST_UART,            // 测试状�??
-    ROBOT_STATE_TEST_INIT,            // 测试状�??
+    ROBOT_STATE_RHAND,          // 举右手
+    ROBOT_STATE_LHAND,          // 举左手
+    ROBOT_STATE_BOTHH,          // 举双手
+    ROBOT_STATE_HEAD,           // 摇头
+    ROBOT_STATE_RESET,            // 测试状态
+    ROBOT_STATE_TEST_ACTION,      // 测试状态
+    ROBOT_STATE_TEST_IMU,         // 测试状态
+    ROBOT_STATE_TEST_UART,            // 测试状态
+    ROBOT_STATE_TEST_INIT,            // 测试状态
 }Robot_StateTypeDef;
 
 /* USER CODE END PTD */
@@ -159,12 +159,6 @@ int main(void)
   /* USER CODE END 1 */
 
   /* MPU Configuration--------------------------------------------------------*/
-
-
-
-
-
-
 
   MPU_Config();
 
@@ -335,7 +329,7 @@ void Robot_State_Machine(void)
 {
     switch(robot_state)
     {
-      // 状�??1：正常模�?????? 日常电机+IMU+USB双向通信
+      // 状态0：日常电机+IMU+USB双向通信
       case ROBOT_STATE_IDLE:
       {
         ROBOT_IDLE();
@@ -343,36 +337,31 @@ void Robot_State_Machine(void)
         Servo_SetAngle(&htim1, TIM_CHANNEL_2, (uint8_t)(MotorIMU_Packet_float[0]/3+30));
         break;
       }
-
-      // 状�??2：执行二维码识别对应的预设动作，动作完成后切到停留模�??????
+      // 状态1：举右手
       case ROBOT_STATE_RHAND:
       {
         ROBOT_RHAND();
         break;
       }
-
-      // 状�??3：非阻塞停留3秒，全程不卡200Hz主循环，3秒后切回正常模式
+      // 状态2：举左手
       case ROBOT_STATE_LHAND:
       {
         ROBOT_LHAND();
         break;
       }
-
-      // 状�??4：异常状�?????? 自动切回正常模式
+      // 状态4：摇头
       case ROBOT_STATE_HEAD:
       {
         ROBOT_HEAD();
         break;
       }
-
-      // 状�??5：测试状�?????? 通过按键触发，执行预设动�??????
+      // 状态5：重置
       case ROBOT_STATE_RESET:
       {
         ROBOT_RESET();
         break;
       }
-
-      // 状�??6：测试状�??????
+      // 状态3：举双手
       case ROBOT_STATE_BOTHH:
       {
         ROBOT_BOTHH();
@@ -774,7 +763,7 @@ void BUTTON_CHANGE(void)
         break;
       case 2:
         robot_state = ROBOT_STATE_BOTHH;
-        Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
+        //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
         break;
       case 3:
         robot_state = ROBOT_STATE_TEST_ACTION;
