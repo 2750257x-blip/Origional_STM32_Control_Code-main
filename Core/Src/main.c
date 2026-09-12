@@ -333,7 +333,7 @@ void Robot_State_Machine(void)
       case ROBOT_STATE_IDLE:
       {
         ROBOT_IDLE();
-        Servo_SetAngle(&htim1, TIM_CHANNEL_1, (uint8_t)(180-(MotorIMU_Packet_float[12]/3+30)));
+        Servo_SetAngle(&htim1, TIM_CHANNEL_1, (uint8_t)(180-(-MotorIMU_Packet_float[12]/3+30)));
         Servo_SetAngle(&htim1, TIM_CHANNEL_2, (uint8_t)(MotorIMU_Packet_float[0]/3+30));
         break;
       }
@@ -476,6 +476,7 @@ void ROBOT_RHAND(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   HAL_Delay(3200);
+  robot_state = ROBOT_STATE_IDLE;
   Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
   LCD_ClearRect(10, 10, 240, 24);
   LCD_DisplayText(0, 10, "Mode : IDLE");
@@ -524,6 +525,7 @@ void ROBOT_HEAD(void)
   HAL_Delay(600);
   Servo_SetAngle(&htim1, TIM_CHANNEL_3, 90);
   HAL_Delay(200);
+  robot_state = ROBOT_STATE_IDLE;
   LCD_ClearRect(10, 10, 240, 24);
   LCD_DisplayText(0, 10, "Mode : IDLE");
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
@@ -543,7 +545,7 @@ void ROBOT_RESET(void)
 void ROBOT_BOTHH(void)
 {
   LCD_ClearRect(10, 10, 240, 24);
-  LCD_DisplayText(10, 10, "Mode : RHAND");
+  LCD_DisplayText(10, 10, "Mode : BOTHH");
   Servo_SetAngle(&htim1, TIM_CHANNEL_1, 0);
     Servo_SetAngle(&htim1, TIM_CHANNEL_2, 180);
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
@@ -551,6 +553,7 @@ void ROBOT_BOTHH(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   HAL_Delay(3200);
+  robot_state = ROBOT_STATE_IDLE;
   Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
   Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
   LCD_ClearRect(10, 10, 240, 24);
