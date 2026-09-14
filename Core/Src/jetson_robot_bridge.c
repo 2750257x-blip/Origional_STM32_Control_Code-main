@@ -1,4 +1,4 @@
-#include "jetson_robot_bridge.h"
+﻿#include "jetson_robot_bridge.h"
 
 #include "fdcan.h"
 #include "imu.h"
@@ -17,12 +17,12 @@
 
 static uint32_t last_applied_command_count;
 
-/* ---- 鍙嶉鍓嶅悜棰勬祴婊ゆ尝 ---- */
-#define SMOOTHING_ALPHA         0.0f     /* 0~1: 瓒婂ぇ瓒婅窡闅忛娴嬪€� */
-#define FRAME_ANGLE_LIMIT       0.5f     /* 鍙嶉鍋忕鐩爣鐨勬渶澶у崟甯у彉鍖� (rad) */
-#define MAX_PREDICT_DT_MS       50U      /* 棰勬祴螖t涓婇檺 (ms)锛岄槻姝㈠崱椤挎椂璺冲彉 */
+/* ---- 反馈前向预测滤波 ---- */
+#define SMOOTHING_ALPHA         0.0f     /* 0~1: 越大越跟随预测值 */
+#define FRAME_ANGLE_LIMIT       0.5f     /* 反馈偏离目标的最大单帧变化量 (rad) */
+#define MAX_PREDICT_DT_MS       50U      /* 预测dt上限 (ms)，防止卡顿瞬间跳变 */
 
-/* Nano 涓嬪彂鐨勭洰鏍囦綅缃紝鐢ㄤ綔骞虫粦鍙傝€冿紙鏃犳粸鍚庛€佹棤鍣０锛� */
+/* Nano 下发的目标位置，用作平滑参考（无滞后、无噪声） */
 static float target_position[PROTOCOL_NUM_JOINTS];
 static uint32_t last_send_tick_ms;
 
@@ -233,10 +233,10 @@ uint8_t JetsonRobotBridge_SendState(void)
 
     state.timestamp_us = HAL_GetTick() * 1000U;
 
-    /* 螖t 鐢ㄤ簬閫熷害澶栨帹锛氳窛涓婃鍙戦€佺殑鏃堕棿宸紝涓婇檺淇濇姢闃茶烦鍙� */
+    /* Δt 用于速度外推：距上次发送的时间差，上限保护防跳变 */
     uint32_t now_tick = HAL_GetTick();
     uint32_t delta_t_ms = now_tick - last_send_tick_ms;
-    if (delta_t_ms > MAX_PREDICT_DT_MS) delta_t_ms = 0U;  // 棣栨鎴栧崱椤挎椂涓嶉娴�
+    if (delta_t_ms > MAX_PREDICT_DT_MS) delta_t_ms = 0U;  // 首次或卡顿时不预测
     last_send_tick_ms = now_tick;
     float delta_t = (float)delta_t_ms * 0.001f;
 
@@ -244,21 +244,21 @@ uint8_t JetsonRobotBridge_SendState(void)
         float sign = ((index == 0U) || (index == 4U) ||
                       (index == 6U) || (index == 10U)) ? -1.0f : 1.0f;
 
-        /* 鍘熷鍙嶉锛堝凡杞ā鍨嬪潗鏍囩郴锛� */
+        /* 原始反馈（已转模型坐标系） */
         float raw_pos = sign * feedback[index * 2U];
         float raw_vel = sign * feedback[index * 2U + 1U];
 
-        /* 1. 閫熷害澶栨帹 鈥� 琛ュ伩1甯ф粸鍚庯細p_pred = p_raw + v * 螖t */
+        /* 1. 速度外推 —— 补偿1帧滞后：p_pred = p_raw + v * Δt */
         float predicted = raw_pos + raw_vel * delta_t;
 
-        /* 2. 鍚戠洰鏍囦綅缃钩婊� 鈥� 浠ュ鎺ㄤ负涓伙紝浠ョ洰鏍囦负鍙傝€冩姂鍒跺櫔澹� */
+        /* 2. 向目标位置平滑 —— 以外推为主，以目标为参考抑制噪声 */
         // float corrected = SMOOTHING_ALPHA * predicted
         //                 + (1.0f - SMOOTHING_ALPHA) * target_position[index];
         float corrected = SMOOTHING_ALPHA * predicted
                         + (1.0f - SMOOTHING_ALPHA) * raw_pos;
 
 
-        /* 3. 鍗曞抚闄愬箙 鈥� 鍙嶉鍋忕鐩爣涓嶈秴杩囬檺鍒跺€硷紝杩囨护璺冲彉 */
+        /* 3. 单帧限幅 —— 反馈偏离目标不超过限制值，过滤跳变 */
         float delta = corrected - target_position[index];
         if (delta > FRAME_ANGLE_LIMIT)  delta = FRAME_ANGLE_LIMIT;
         if (delta < -FRAME_ANGLE_LIMIT) delta = -FRAME_ANGLE_LIMIT;

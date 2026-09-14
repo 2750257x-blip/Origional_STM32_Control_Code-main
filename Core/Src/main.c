@@ -1,4 +1,4 @@
-/* USER CODE BEGIN Header */
+﻿/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file           : main.c
@@ -204,14 +204,14 @@ int main(void)
   HAL_Delay(200);       // 电机上电延时
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
   imu_init(0x0F, 0xFD, &hfdcan3);
-  // ==== 配置主动模式 100Hz 输出 6�?+四元�? ====
+  // ==== 配置主动模式 100Hz 输出 6轴+四元数 ====
   imu_change_to_request();                // 切到请求模式才能配置
   HAL_Delay(20);
   imu_set_active_mode_delay(10);          // 100Hz (10ms)
-  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=四元�?, 0=欧拉角（6轴始终输出）
+  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=四元数, 0=欧拉角（6轴始终输出）
   imu_save_parameters();                  // 保存到IMU内部Flash
   HAL_Delay(20);
-  imu_change_to_active();                 // 切换到主动模�?
+  imu_change_to_active();                 // 切换到主动模式
   HAL_Delay(20);
   /* Preserve gravity-referenced roll and pitch. Zeroing at each boot would
      make a tilted startup pose appear level and corrupt projected gravity. */
@@ -219,7 +219,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);    // 启动PWM信号输出（舵机控制）
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);    // 启动PWM信号输出（舵机控制）
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);    // 启动PWM信号输出（舵机控制）
-  SPI_LCD_Init();			// SPI LCD屏幕初始�????
+  SPI_LCD_Init();			// SPI LCD屏幕初始化
   motor_enable();
   HAL_Delay(100);
   HAL_TIM_Base_Start_IT(&htim3);
@@ -243,14 +243,14 @@ int main(void)
   }
 
   //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-  Action_Goto(0.22f, 0.0f, 0.0f, -0.30f, -0.15f, 0.0f, -0.22f, 0.0f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
+  Action_Goto(0.20f, 0.0f, 0.0f, -0.30f, -0.15f, 0.0f, -0.20f, 0.0f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   //Action_Goto(0.15f, 0.05f, 0.0f, -0.30f, -0.15f, 0.0f, -0.15f, -0.05f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   system_control_warning = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  imu_set_zero();                         // 娓呴浂鍥涘厓鏁帮紝浣垮浣嶅悗濮挎€佸綊闆�
+  imu_set_zero();                         // 清零四元数，使复位后姿态归零
   HAL_Delay(500);
   while (1)
   {
@@ -368,28 +368,28 @@ void Robot_State_Machine(void)
         break;
       }
 
-      // 状�??7：测试二维码识别对应的预设动�??????
+      // 状态7：测试二维码识别对应的预设动作
       case ROBOT_STATE_TEST_ACTION:
       {
         ROBOT_TEST_ACTION();
         break;
       }
 
-      // 状�??8：测试IMU通信
+      // 状态8：测试IMU通信
       case ROBOT_STATE_TEST_IMU:
       {
         ROBOT_TEST_IMU();
         break;
       }
 
-      // 状�??9：测试UART通信
+      // 状态9：测试UART通信
       case ROBOT_STATE_TEST_UART:
       {
         ROBOT_TEST_UART();
         break;
       }
 
-      // 状�??10：测试初始化
+      // 状态10：测试初始化
       case ROBOT_STATE_TEST_INIT:
       {
         ROBOT_TEST_INIT();
@@ -407,7 +407,7 @@ void Robot_State_Machine(void)
 
 void ROBOT_IDLE(void) 
 {
-  // 处理通过USB CDC收到并�?�过CRC校验的Nano关节目标�??
+  // 处理通过USB CDC收到并经过CRC校验的Nano关节目标
   JetsonRobotBridge_ProcessCommand();
 
   // if (imu_data_ready == 0x00) {
@@ -419,7 +419,7 @@ void ROBOT_IDLE(void)
   // else if (imu_data_ready== 0x03) {      
   //   imu_request_quat();
   // }
-  //汇�?�电机状态和IMU数据，使用与通信测试工程相同的帧协议上传Nano�??
+  //汇总电机状态和IMU数据，使用与通信测试工程相同的帧协议上传Nano
   __disable_irq();
   uint16_t motor_status_ready_copy = motor_status_ready; 
   uint8_t imu_data_ready_copy = imu_data_ready; 
@@ -427,7 +427,7 @@ void ROBOT_IDLE(void)
   if (motor_status_ready_copy == 0x0FFF &&
       (imu_data_ready_copy & IMU_DATA_REQUIRED) == IMU_DATA_REQUIRED &&
       IMU_DataIsFresh(HAL_GetTick(), 50U)) {
-    if (JetsonRobotBridge_SendState() == USBD_OK) { // USB发�?�成�??
+    if (JetsonRobotBridge_SendState() == USBD_OK) { // USB发送成功
     __disable_irq();
    // motor_status_ready = 0; // 重置计数
     imu_data_ready = 0;
@@ -436,7 +436,7 @@ void ROBOT_IDLE(void)
     }
   }
 
-  // 收到Nano发来的二维码动作指令，切换动作模�??????
+  // 收到Nano发来的二维码动作指令，切换动作模式
   // if(action_state != ACTION_IDLE)
   // {
   //   robot_state = ROBOT_STATE_ACTION;
@@ -447,7 +447,7 @@ void ROBOT_IDLE(void)
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   // }
   // if(system_control_warning >= 10 || motor_status_fault != 0 || motor_status_mode != 0x0FFF) {
-  //   robot_state = ROBOT_STATE_ERROR; // 如果连续3个周期没有正常控制，切换到异常状�??????
+  //   robot_state = ROBOT_STATE_ERROR; // 如果连续3个周期没有正常控制，切换到异常状态
   //   LCD_ClearRect(10, 10, 240, 24);
   //   LCD_DisplayText(10, 10, "Mode : ERROR");
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
@@ -459,10 +459,10 @@ void ROBOT_IDLE(void)
   imu_change_to_request();                // 切到请求模式才能配置
   HAL_Delay(20);
   imu_set_active_mode_delay(10);          // 100Hz (10ms)
-  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=四元�?, 0=欧拉角（6轴始终输出）
+  imu_write_reg(DATA_OUTPUT_SELECTION, 1);// 1=四元数, 0=欧拉角（6轴始终输出）
   imu_save_parameters();                  // 保存到IMU内部Flash
   HAL_Delay(20);
-  imu_change_to_active();                 // 切换到主动模�?
+  imu_change_to_active();                 // 切换到主动模式
   }
 }
 
@@ -601,12 +601,12 @@ void ROBOT_TEST_IMU(void)
     imu_request_gyro();
     }
     
-    //发�?�IMU数据
+    //发送IMU数据
     __disable_irq();
     uint8_t imu_data_ready_copy = imu_data_ready; 
     memcpy(&usb_tx_buffer[48], imu_buf, sizeof(imu_buf)); 
     __enable_irq();
-    if (imu_data_ready_copy == 0x03) { // 假设IMU数据都就�??????
+    if (imu_data_ready_copy == 0x03) { // 假设IMU数据都就绪
       if (CDC_Transmit_HS(&usb_tx_buffer[48], sizeof(imu_buf)+52) == USBD_OK) {
         __disable_irq();
         imu_data_ready = 0; // 重置计数
@@ -657,7 +657,7 @@ void ROBOT_TEST_INIT(void)
     HAL_Delay(200);
     for (int i = 0; i < 12; i++) {
     if(motor_status_fault & (1 << i)) {
-        // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发�?�控制命令等
+        // 这里可以添加针对未就绪电机的处理逻辑，例如重置电机状态并重新发送控制命令等
         EL05_Motor_Clear_Fault(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
         EL05_Motor_Enable(i < 6 ? &hfdcan1 : &hfdcan2, i < 6 ? i + r_leg_pitch : i - 6 + l_leg_pitch);
       }
@@ -694,7 +694,7 @@ void BUTTON_CHANGE(void)
           button_pressed --;
         }
       }
-      if(button_pressed == 0) {  // 按键0：正常模�??????
+      if(button_pressed == 0) {  // 按键0：正常模式
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : IDLE");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
@@ -710,7 +710,7 @@ void BUTTON_CHANGE(void)
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
-      else if(button_pressed == 2) {  // 按键2：测�??????
+      else if(button_pressed == 2) {  // 按键2：测试
         LCD_ClearRect(10, 10, 240, 24);
         LCD_DisplayText(10, 10, "Mode : TEST");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
@@ -791,13 +791,13 @@ void BUTTON_CHANGE(void)
 
 void Close_All_Old_Func(void)
 {
-    // 1. 关闭定时器中�??????
+    // 1. 关闭定时器中断
 
-    // 3. 关闭串口发�?�和接收
+    // 3. 关闭串口发送和接收
     HAL_UART_Abort(&huart1);
     HAL_UART_Abort(&huart2);
 
-    // 5. 清空�??????有运行标志位
+    // 5. 清空所有运行标志位
     system_control_cycle = 0;
     system_control_cycle_copy = 0;
     system_control_warning = 0;  
@@ -904,15 +904,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
   if (htim->Instance == TIM3 && robot_state == ROBOT_STATE_IDLE) {
     if (system_control_cycle == system_control_cycle_copy) {
-        system_control_warning ++; // 如果周期计数没有增加，设置警告标�??????
+        system_control_warning ++; // 如果周期计数没有增加，设置警告标志
     } else {
-        system_control_warning = 0; // 周期正常，清除警告标�??????
+        system_control_warning = 0; // 周期正常，清除警告标志
     }
     system_control_cycle_copy = system_control_cycle;
     if (imu_data_count == imu_data_count_copy) {
-        imu_warning ++; // 如果周期计数没有增加，设置警告标?????
+        imu_warning ++; // 如果周期计数没有增加，设置警告标志
     } else {
-        imu_warning = 0; // 周期正常，清除警告标?????
+        imu_warning = 0; // 周期正常，清除警告标志
     }
     imu_data_count_copy = imu_data_count;
   }

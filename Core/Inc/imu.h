@@ -1,24 +1,24 @@
-#ifndef __IMU_H
+﻿#ifndef __IMU_H
 #define __IMU_H
 
 #include "stm32h7xx_hal.h"
 
-#define ACCEL_CAN_MAX   (235.2f)        //�漲�嚗?24g嚗?1g=9.8m/s簡嚗?
-#define ACCEL_CAN_MIN	(-235.2f)       
-#define GYRO_CAN_MAX	(34.88f)        //閫漲�嚗?2000簞/s嚗?1簞/s=0.01745 rad/s嚗?
-#define GYRO_CAN_MIN	(-34.88f) 
-#define PITCH_CAN_MAX	(90.0f)         //憪踵��湛�簣90簞嚗?1簞=0.01745 rad嚗?
-#define PITCH_CAN_MIN	(-90.0f)      
-#define ROLL_CAN_MAX	(180.0f)        //憪踵��湛�簣180簞嚗?1簞=0.01745 rad嚗?
+#define ACCEL_CAN_MAX   (235.2f)        // 加速度量程 ±24g，1g = 9.8m/s²
+#define ACCEL_CAN_MIN	(-235.2f)
+#define GYRO_CAN_MAX	(34.88f)        // 陀螺仪量程 ±2000°/s，1°/s = 0.01745 rad/s
+#define GYRO_CAN_MIN	(-34.88f)
+#define PITCH_CAN_MAX	(90.0f)         // 俯仰角范围 ±90°，1° = 0.01745 rad
+#define PITCH_CAN_MIN	(-90.0f)
+#define ROLL_CAN_MAX	(180.0f)        // 横滚角范围 ±180°
 #define ROLL_CAN_MIN	(-180.0f)
-#define YAW_CAN_MAX		(180.0f)        //憪踵��湛�簣180簞嚗?1簞=0.01745 rad嚗?
+#define YAW_CAN_MAX		(180.0f)        // 偏航角范围 ±180°
 #define YAW_CAN_MIN 	(-180.0f)
-#define TEMP_MIN		(0.0f)          //皜拙漲�嚗?0-60��  
+#define TEMP_MIN		(0.0f)          // 温度范围 0~60℃
 #define TEMP_MAX		(60.0f)
-#define Quaternion_MIN	(-1.0f)         //���啗��湛�-1�?1嚗?
+#define Quaternion_MIN	(-1.0f)         // 四元数范围 -1 ~ 1
 #define Quaternion_MAX	(1.0f)
 
-#define CMD_READ 0                    
+#define CMD_READ 0
 #define CMD_WRITE 1
 extern volatile int32_t imu_data_count;
 
@@ -28,49 +28,49 @@ extern volatile int32_t imu_data_count;
 #define IMU_DATA_REQUIRED          (IMU_DATA_ACCEL_READY | IMU_DATA_GYRO_READY | IMU_DATA_QUATERNION_READY)
 typedef enum
 {
-	COM_USB=0,    // USB��銝脣
-	COM_RS485,    // RS485銝脣
-	COM_CAN,      // CAN�餌瑪
-	COM_VOFA      // VOFA�瑪�縑
+	COM_USB=0,    // USB端口
+	COM_RS485,    // RS485端口
+	COM_CAN,      // CAN端口
+	COM_VOFA      // VOFA上位机
 
 }imu_com_port_e;
 
 typedef enum
 {
-	CAN_BAUD_1M=0,    // CAN瘜Ｙ�?1Mbps
-	CAN_BAUD_500K,    // CAN瘜Ｙ�?500Kbps
-	CAN_BAUD_400K,    // CAN瘜Ｙ�?400Kbps
-	CAN_BAUD_250K,    // CAN瘜Ｙ�?250Kbps
-	CAN_BAUD_200K,    // CAN瘜Ｙ�?200Kbps
-	CAN_BAUD_100K,    // CAN瘜Ｙ�?100Kbps
-	CAN_BAUD_50K,     // CAN瘜Ｙ�?50Kbps
-	CAN_BAUD_25K      // CAN瘜Ｙ�?25Kbps
+	CAN_BAUD_1M=0,    // CAN波特率 1Mbps
+	CAN_BAUD_500K,    // CAN波特率 500Kbps
+	CAN_BAUD_400K,    // CAN波特率 400Kbps
+	CAN_BAUD_250K,    // CAN波特率 250Kbps
+	CAN_BAUD_200K,    // CAN波特率 200Kbps
+	CAN_BAUD_100K,    // CAN波特率 100Kbps
+	CAN_BAUD_50K,     // CAN波特率 50Kbps
+	CAN_BAUD_25K      // CAN波特率 25Kbps
 
 }imu_baudrate_e;
 
-typedef enum 
+typedef enum
 {
-	REBOOT_IMU=0,              //�IMU                  1
-	ACCEL_DATA,                //霂瑟��漲�唳            0
-	GYRO_DATA,                 //霂瑟�閫漲�唳            0
-	EULER_DATA,                //霂瑟�甈扳�閫�?            0
-	QUAT_DATA,                 //霂瑟����唳�?            0
+	REBOOT_IMU=0,              // 重启IMU                  写1
+	ACCEL_DATA,                // 请求加速度数据           读0
+	GYRO_DATA,                 // 请求陀螺仪数据           读0
+	EULER_DATA,                // 请求欧拉角数据           读0
+	QUAT_DATA,                 // 请求四元数数据           读0
 
-	SET_ZERO,                  //閫漲霈曄蔭�嗡�              1
-	ACCEL_CALI,                //�漲�∪�                1
-	GYRO_CALI,                 //��箔貌�∪�                1
-	MAG_CALI,                  //蝤�霈⊥�?                1
+	SET_ZERO,                  // 设置零位                 写1
+	ACCEL_CALI,                // 加速度计校准             写1
+	GYRO_CALI,                 // 陀螺仪校准               写1
+	MAG_CALI,                  // 磁力计校准               写1
 
-	CHANGE_COM,                //��縑蝡臬              01
-	SET_DELAY,                 //霈曄蔭銝餃璅∪�銝�株��箏辣�? 01
-	CHANGE_ACTIVE,             //�銝餃/霂瑟�璅∪�         01
+	CHANGE_COM,                // 切换通信端口             写01
+	SET_DELAY,                 // 设置主动模式回传延时     写01
+	CHANGE_ACTIVE,             // 主动/请求模式切换        写01
 
-	SET_BAUD,                  //霈曄蔭CAN瘜Ｙ�?             01
-	SET_CAN_ID,                //霈曄蔭CAN ID                01
-	SET_MST_ID,                //霈曄蔭銝餅ID                 01
-	DATA_OUTPUT_SELECTION,     //�唳颲�嚗洹��/���堆� 01
-	SAVE_PARAM=254,            //靽���圈��仃摮�?         1
-	RESTORE_SETTING=255        //�Ｗ��箏�霈曄蔭                  	1
+	SET_BAUD,                  // 设置CAN波特率            写01
+	SET_CAN_ID,                // 设置CAN ID               写01
+	SET_MST_ID,                // 设置主机ID               写01
+	DATA_OUTPUT_SELECTION,     // 选择输出数据类型(欧拉/四元数) 写01
+	SAVE_PARAM=254,            // 保存参数到Flash         写1
+	RESTORE_SETTING=255        // 恢复出厂设置             写1
 }reg_id_e;
 
 
@@ -79,19 +79,19 @@ typedef struct
 {
 	uint8_t can_id;
 	uint8_t mst_id;
-	
+
 	FDCAN_HandleTypeDef *can_handle;
-	
-	float pitch;           
-	float roll;             
+
+	float pitch;
+	float roll;
 	float yaw;
 
-	float gyro[3];           
-	float accel[3];          
+	float gyro[3];
+	float accel[3];
 
-	float q[4];              //���唳�殷���嚗�嚗?
+	float q[4];              // 四元数数据(w,x,y,z)
 
-	float cur_temp;          //敶�皜拙漲嚗�雿���
+	float cur_temp;          // 当前芯片温度
 
 }imu_t;
 
@@ -102,31 +102,31 @@ extern volatile uint32_t imu_last_gyro_ms;
 extern volatile uint32_t imu_last_quaternion_ms;
 extern uint8_t imu_buf[12];
 
-void imu_init(uint8_t can_id,uint8_t mst_id,FDCAN_HandleTypeDef *hfdcan);  // IMU���?
-void imu_write_reg(uint8_t reg_id,uint32_t data);                          // IMU撖��典��?
-void imu_read_reg(uint8_t reg_id);                                         // IMU撖��刻粉�?
+void imu_init(uint8_t can_id,uint8_t mst_id,FDCAN_HandleTypeDef *hfdcan);  // IMU初始化
+void imu_write_reg(uint8_t reg_id,uint32_t data);                          // IMU写寄存器
+void imu_read_reg(uint8_t reg_id);                                         // IMU读寄存器
 
-void imu_reboot();                                                         // �IMU
-void imu_set_zero();                                                       // 霈曄蔭�嗡�
-void imu_accel_calibration();                                              // �漲�∪�
-void imu_gyro_calibration();                                               // ��箔貌�∪�
+void imu_reboot();                                                         // 重启IMU
+void imu_set_zero();                                                       // 设置零位
+void imu_accel_calibration();                                              // 加速度计校准
+void imu_gyro_calibration();                                               // 陀螺仪校准
 
-void imu_change_com_port(imu_com_port_e port);                             // ��縑蝡臬
-void imu_set_active_mode_delay(uint32_t delay);                            // 霈曄蔭銝餃璅∪�銝�株��箏辣�?
-void imu_change_to_active();                                               // ��唬蜓�冽芋撘?
-void imu_change_to_request();                                              // ��啗窈瘙芋撘?
+void imu_change_com_port(imu_com_port_e port);                             // 切换通信端口
+void imu_set_active_mode_delay(uint32_t delay);                            // 设置主动模式回传延时
+void imu_change_to_active();                                               // 切换为主动上报模式
+void imu_change_to_request();                                              // 切换为请求(问答)模式
 
-void imu_set_baud(imu_baudrate_e baud);                                    // 霈曄蔭CAN瘜Ｙ�?
-void imu_set_can_id(uint8_t can_id);                                       // 霈曄蔭CAN ID
-void imu_set_mst_id(uint8_t mst_id);                                       // 霈曄蔭銝餅ID
-void imu_save_parameters();                                                // 靽��
-void imu_restore_settings();                                               // �Ｗ��箏�霈曄蔭
+void imu_set_baud(imu_baudrate_e baud);                                    // 设置CAN波特率
+void imu_set_can_id(uint8_t can_id);                                       // 设置CAN ID
+void imu_set_mst_id(uint8_t mst_id);                                       // 设置主机ID
+void imu_save_parameters();                                                // 保存参数到Flash
+void imu_restore_settings();                                               // 恢复出厂设置
 
-void imu_request_accel();                                                  // 霂瑟��漲�唳
-void imu_request_gyro();                                                   // 霂瑟�閫漲�唳
-void imu_request_euler();                                                  // 霂瑟�甈扳�閫�?
-void imu_request_quat();                                                   // 霂瑟����唳�?
-void IMU_UpdateData(uint8_t* pData);									   // �湔IMU�唳
+void imu_request_accel();                                                 // 请求加速度数据
+void imu_request_gyro();                                                  // 请求陀螺仪数据
+void imu_request_euler();                                                  // 请求欧拉角数据
+void imu_request_quat();                                                  // 请求四元数数据
+void IMU_UpdateData(uint8_t* pData);									   // 解析IMU数据
 
 uint8_t IMU_DataIsFresh(uint32_t now_ms, uint32_t maximum_age_ms);
 

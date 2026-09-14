@@ -1,4 +1,4 @@
-#ifndef __QR_CODE_STATE_H
+﻿#ifndef __QR_CODE_STATE_H
 #define __QR_CODE_STATE_H
 
 typedef enum {

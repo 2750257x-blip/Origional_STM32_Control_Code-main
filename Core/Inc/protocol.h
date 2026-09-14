@@ -1,4 +1,4 @@
-#ifndef __PROTOCOL_H
+﻿#ifndef __PROTOCOL_H
 #define __PROTOCOL_H
 
 #include "stm32h7xx_hal.h"

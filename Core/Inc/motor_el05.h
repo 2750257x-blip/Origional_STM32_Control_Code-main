@@ -1,11 +1,11 @@
-#ifndef __MOTOR_EL05_H
+﻿#ifndef __MOTOR_EL05_H
 #define __MOTOR_EL05_H
 #include "stdint.h"
 #include "fdcan.h"
 
 // 电机参数定义（与手册一致）
-#define P_MIN        -12.56f    //position范围（-4π rad）
-#define P_MAX        12.56f     //position范围（π rad）
+#define P_MIN        -12.56f     //position范围（-4π rad）
+#define P_MAX        12.56f     //position范围（4π rad）
 #define V_MIN        -50.0f     //velocity范围（-50 rad/s）
 #define V_MAX        50.0f      //velocity范围（50 rad/s）
 

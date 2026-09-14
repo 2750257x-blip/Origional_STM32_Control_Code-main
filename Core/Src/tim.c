@@ -1,4 +1,4 @@
-/* USER CODE BEGIN Header */
+﻿/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file    tim.c
@@ -383,12 +383,12 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
 }
 
 /* USER CODE BEGIN 1 */
-// 舵机角度设置函数（angle: 0~180°�???
+// 舵机角度设置函数（angle: 0~180°）
 void Servo_SetAngle(TIM_HandleTypeDef *htim, uint32_t Channel, uint8_t angle)
 {
     // 角度转脉宽：500~2500μs
     uint32_t pulse = 500 + ((uint32_t)angle * 2000) / 180;
-    // 更新PWM比较值（对应脉宽�???
+    // 更新PWM比较值（对应脉宽）
     __HAL_TIM_SET_COMPARE(htim, Channel, pulse);
 }
 
