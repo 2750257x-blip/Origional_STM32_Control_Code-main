@@ -487,11 +487,14 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
         uint16_t u_pos = (data[0] << 8) | data[1];
         // 解析速度(rad/s)：data[2-3]
         uint16_t u_vel = (data[2] << 8) | data[3];
+        // 解析力矩(N.m)：data[4-5]，16位无符号量转浮点数
+        uint16_t u_tor = (data[4] << 8) | data[5];
         if (hfdcan->Instance == FDCAN1) {
           // 处理FDCAN1接收到的电机状态
           if (id >= r_leg_pitch && id <= r_ankle_roll) {
           MotorIMU_Packet_float[(id-r_leg_pitch)*2+12]= (float)u_pos * (P_MAX - P_MIN) / 65535.0f + P_MIN;
           MotorIMU_Packet_float[(id-r_leg_pitch)*2+1+12]= (float)u_vel * (V_MAX - V_MIN) / 65535.0f + V_MIN;
+          MotorIMU_Packet_float[(id-r_leg_pitch)+40]= (float)u_tor * (T_MAX - T_MIN) / 65535.0f + T_MIN;
           memcpy(&motor_status_buf[(id-r_leg_pitch)*4], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
           //memcpy(&MotorIMU_Packet_t[(id-r_leg_pitch)*4], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
           motor_status_ready |= (1 << (id - r_leg_pitch)); // 设置对应电机的数据就绪标志
@@ -505,6 +508,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
           if (id >= l_leg_pitch && id <= l_ankle_roll) {
           MotorIMU_Packet_float[(id-l_leg_pitch)*2]= (float)u_pos * (P_MAX - P_MIN) / 65535.0f + P_MIN;
           MotorIMU_Packet_float[(id-l_leg_pitch)*2+1]= (float)u_vel * (V_MAX - V_MIN) / 65535.0f + V_MIN;
+          MotorIMU_Packet_float[(id-l_leg_pitch)+34]= (float)u_tor * (T_MAX - T_MIN) / 65535.0f + T_MIN;
           memcpy(&motor_status_buf[(id-l_leg_pitch)*4+24], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
           //memcpy(&MotorIMU_Packet_t[(id-l_leg_pitch)*4+24], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
           motor_status_ready |= (1 << (id - l_leg_pitch + 6)); // 设置对应电机的数据就绪标志

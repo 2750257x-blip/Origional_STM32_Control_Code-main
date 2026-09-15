@@ -208,7 +208,7 @@ void JetsonRobotBridge_ProcessCommand(void)
 uint8_t JetsonRobotBridge_SendState(void)
 {
     RobotStatePayload state;
-    float feedback[34];
+    float feedback[46];
     uint16_t ready_flags;
     uint16_t fault_flags;
     uint16_t mode_flags;
@@ -260,6 +260,9 @@ uint8_t JetsonRobotBridge_SendState(void)
 
         state.joint_position[index] = corrected;
         state.joint_velocity[index] = raw_vel;
+
+        /* 力矩与位置/速度同轴，方向反的4个关节同样取负 */
+        state.joint_torque[index] = sign * feedback[34U + index];
     }
     memcpy(state.accel_m_s2, &feedback[24], sizeof(state.accel_m_s2));
     memcpy(state.gyro_rad_s, &feedback[27], sizeof(state.gyro_rad_s));
