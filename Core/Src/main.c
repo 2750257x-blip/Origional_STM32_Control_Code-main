@@ -256,7 +256,7 @@ int main(void)
   {
     BUTTON_CHANGE(); 
     Robot_State_Machine();
-    LCD_State_Machine();
+    //LCD_State_Machine();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
