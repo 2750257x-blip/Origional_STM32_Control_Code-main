@@ -1,4 +1,4 @@
-ï»¿/* USER CODE BEGIN Header */
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file    tim.c
@@ -73,7 +73,7 @@ void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 833;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -83,11 +83,12 @@ void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.Pulse = 1500;
+  sConfigOC.Pulse = 2167;
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
   }
+  sConfigOC.Pulse = 1500;
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     Error_Handler();
@@ -383,12 +384,12 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
 }
 
 /* USER CODE BEGIN 1 */
-// èˆµæœºè§’åº¦è®¾ç½®å‡½æ•°ï¼ˆangle: 0~180Â°ï¼‰
+// ¶æ»ú½Ç¶ÈÉèÖÃº¯Êı£¨angle: 0~180¡ã£©
 void Servo_SetAngle(TIM_HandleTypeDef *htim, uint32_t Channel, uint8_t angle)
 {
-    // å®é™…èˆµæœº 0~180Â° æ˜¯é€†æ—¶é’ˆï¼Œè¿™é‡Œåå‘ä¸€æ¬¡ï¼Œä½¿ 0Â° å¯¹åº”åŸ 180Â°ï¼›è§’åº¦è½¬è„‰å®½ï¼š500~2500Î¼s
+    // Êµ¼Ê¶æ»ú 0~180¡ã ÊÇÄæÊ±Õë£¬ÕâÀï·´ÏòÒ»´Î£¬Ê¹ 0¡ã ¶ÔÓ¦Ô­ 180¡ã£»½Ç¶È×ªÂö¿í£º500~2500¦Ìs
     uint32_t pulse = 500 + ((uint32_t)(180 - angle) * 2000) / 180;
-    // æ›´æ–°PWMæ¯”è¾ƒå€¼ï¼ˆå¯¹åº”è„‰å®½ï¼‰
+    // ¸üĞÂPWM±È½ÏÖµ£¨¶ÔÓ¦Âö¿í£©
     __HAL_TIM_SET_COMPARE(htim, Channel, pulse);
 }
 
