@@ -11,6 +11,7 @@ extern USBD_HandleTypeDef hUsbDeviceHS;
     (sizeof(ProtocolHeader) + sizeof(RobotStatePayload) + 2U)
 
 static uint8_t state_frame[STATE_FRAME_SIZE];
+static uint8_t action_status_frame[sizeof(ProtocolHeader) + sizeof(ActionStatusPayload) + 2U];
 
 void JetsonUsbCdc_OnReceive(
     const uint8_t *data,
@@ -41,4 +42,21 @@ uint8_t JetsonUsbCdc_SendState(const RobotStatePayload *state)
     }
 
     return CDC_Transmit_HS(state_frame, length);
+}
+
+uint8_t JetsonUsbCdc_SendActionStatus(const ActionStatusPayload *status)
+{
+    USBD_CDC_HandleTypeDef *cdc =
+        (USBD_CDC_HandleTypeDef *)hUsbDeviceHS.pClassData;
+    uint16_t length;
+
+    if ((cdc == NULL) || (cdc->TxState != 0U)) {
+        return USBD_BUSY;
+    }
+    length = Protocol_EncodeActionStatus(status, action_status_frame,
+                                         sizeof(action_status_frame));
+    if (length == 0U) {
+        return USBD_FAIL;
+    }
+    return CDC_Transmit_HS(action_status_frame, length);
 }

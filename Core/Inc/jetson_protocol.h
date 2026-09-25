@@ -10,6 +10,14 @@
 #define PROTOCOL_NUM_JOINTS         12U
 #define PROTOCOL_MSG_STATE          1U
 #define PROTOCOL_MSG_COMMAND        2U
+#define PROTOCOL_MSG_ACTION_REQUEST 3U
+#define PROTOCOL_MSG_ACTION_STATUS  4U
+
+#define ACTION_STATUS_ACCEPTED      1U
+#define ACTION_STATUS_DONE          2U
+#define ACTION_STATUS_BUSY          3U
+#define ACTION_STATUS_INVALID       4U
+#define ACTION_STATUS_FAILED        5U
 
 #define COMMAND_ENABLE              (1UL << 0)
 #define COMMAND_ESTOP               (1UL << 1)
@@ -48,6 +56,17 @@ typedef struct {
     uint32_t command_flags;
 } RobotCommandPayload;
 
+typedef struct {
+    uint32_t event_id;
+    uint8_t action_id;
+} ActionRequestPayload;
+
+typedef struct {
+    uint32_t event_id;
+    uint8_t action_id;
+    uint8_t status;
+} ActionStatusPayload;
+
 /* Debug variables readable through ST-Link/SWD and CubeIDE Live Expressions. */
 extern volatile RobotCommandPayload g_debug_latest_command;
 extern volatile uint16_t g_debug_command_sequence;
@@ -60,12 +79,16 @@ extern volatile uint32_t g_debug_crc_error_count;
 _Static_assert(sizeof(ProtocolHeader) == 8U, "ProtocolHeader wire size must be 8 bytes");
 _Static_assert(sizeof(RobotStatePayload) == 144U, "RobotStatePayload wire size must be 144 bytes");
 _Static_assert(sizeof(RobotCommandPayload) == 64U, "RobotCommandPayload wire size must be 64 bytes");
+_Static_assert(sizeof(ActionRequestPayload) == 5U, "ActionRequestPayload wire size must be 5 bytes");
+_Static_assert(sizeof(ActionStatusPayload) == 6U, "ActionStatusPayload wire size must be 6 bytes");
 
 void Protocol_Init(void);
 void Protocol_RxBytes(const uint8_t *data, uint16_t length, uint32_t now_ms);
 bool Protocol_GetFreshCommand(uint32_t now_ms, uint32_t maximum_age_ms, RobotCommandPayload *output);
 bool Protocol_CommandIsFresh(uint32_t now_ms, uint32_t maximum_age_ms);
+bool Protocol_TakeActionRequest(ActionRequestPayload *output);
 uint16_t Protocol_EncodeState(const RobotStatePayload *state, uint8_t *output, uint16_t capacity);
+uint16_t Protocol_EncodeActionStatus(const ActionStatusPayload *status, uint8_t *output, uint16_t capacity);
 uint32_t Protocol_GetCrcErrorCount(void);
 
 #endif

@@ -9,5 +9,6 @@ void JetsonUsbCdc_OnReceive(
     uint32_t length,
     uint32_t now_ms);
 uint8_t JetsonUsbCdc_SendState(const RobotStatePayload *state);
+uint8_t JetsonUsbCdc_SendActionStatus(const ActionStatusPayload *status);
 
 #endif

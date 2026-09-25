@@ -37,6 +37,8 @@
 #include "imu.h"
 #include "protocol.h"
 #include "jetson_robot_bridge.h"
+#include "jetson_protocol.h"
+#include "jetson_usb_cdc.h"
 #include "QRCode_State.h"
 #include "lcd_spi_154.h"
 /* USER CODE END Includes */
@@ -107,6 +109,11 @@ volatile uint32_t action_tick = 0;        /* TIM2 中断里累加 */
 static uint8_t    action_step = 0;        /* 当前动作走到第几步 */
 static uint32_t   action_step_tick = 0;   /* 当前步骤的计时起点 */
 static Robot_StateTypeDef prev_robot_state = ROBOT_STATE_IDLE;
+static ActionStatusPayload pending_action_status;
+static uint8_t pending_action_status_valid = 0U;
+static uint32_t active_event_id = 0U;
+static uint8_t active_action_id = 0U;
+static uint8_t active_action_status = 0U;
 
 uint8_t uart_rx_buf1[120] = {0};
 uint8_t uart_rx_data1[120] = {0};
@@ -437,12 +444,78 @@ void Robot_State_Machine(void)
     }
 }
 
+static void Queue_Action_Status(uint32_t event_id, uint8_t action_id, uint8_t status)
+{
+  pending_action_status.event_id = event_id;
+  pending_action_status.action_id = action_id;
+  pending_action_status.status = status;
+  pending_action_status_valid = 1U;
+}
+
+static void Handle_Action_Request(const ActionRequestPayload *request)
+{
+  Robot_StateTypeDef next_state;
+
+  if (request->event_id == active_event_id && active_event_id != 0U) {
+    Queue_Action_Status(request->event_id, request->action_id,
+        request->action_id == active_action_id ? active_action_status : ACTION_STATUS_INVALID);
+    return;
+  }
+  switch (request->action_id) {
+    case 1U: next_state = ROBOT_STATE_LHAND; break;
+    case 2U: next_state = ROBOT_STATE_RHAND; break;
+    case 5U: next_state = ROBOT_STATE_BOTHH; break;
+    case 6U: next_state = ROBOT_STATE_HEAD; break;
+    default:
+      Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_INVALID);
+      return;
+  }
+  if (request->event_id == 0U) {
+    Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_INVALID);
+    return;
+  }
+  if (robot_state != ROBOT_STATE_IDLE || g_debug_jetson_control_active == 0U ||
+      !Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
+      active_action_status == ACTION_STATUS_ACCEPTED) {
+    Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_BUSY);
+    return;
+  }
+  active_event_id = request->event_id;
+  active_action_id = request->action_id;
+  active_action_status = ACTION_STATUS_ACCEPTED;
+  robot_state = next_state;
+  Queue_Action_Status(active_event_id, active_action_id, active_action_status);
+}
+
 /* 与上位机的USB通信 + 腿部闭环。必须在所有状态下都跑：一旦停下，Nano指令接收和状态回传就断了，
  * 100 ms看门狗一超时就会 stop_all_motors()，腿上的闭环整个掉。 */
 void ROBOT_Comms_Service(void)
 {
   // 处理通过USB CDC收到并经过CRC校验的Nano关节目标
   JetsonRobotBridge_ProcessCommand();
+
+  if (active_action_status == ACTION_STATUS_ACCEPTED) {
+    if (!Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
+        g_debug_jetson_control_active == 0U) {
+      robot_state = ROBOT_STATE_IDLE;
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_3, 90);
+      active_action_status = ACTION_STATUS_FAILED;
+      Queue_Action_Status(active_event_id, active_action_id, active_action_status);
+    } else if (robot_state == ROBOT_STATE_IDLE) {
+      active_action_status = ACTION_STATUS_DONE;
+      Queue_Action_Status(active_event_id, active_action_id, active_action_status);
+    }
+  }
+  ActionRequestPayload action_request;
+  if (Protocol_TakeActionRequest(&action_request)) {
+    Handle_Action_Request(&action_request);
+  }
+  if (pending_action_status_valid != 0U &&
+      JetsonUsbCdc_SendActionStatus(&pending_action_status) == USBD_OK) {
+    pending_action_status_valid = 0U;
+  }
 
   // if (imu_data_ready == 0x00) {
   //     imu_request_accel();

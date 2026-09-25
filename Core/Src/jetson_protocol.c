@@ -15,6 +15,8 @@ static uint16_t rx_expected_length;
 static RobotCommandPayload latest_command;
 static volatile uint32_t latest_command_ms;
 static volatile bool command_available;
+static ActionRequestPayload pending_action;
+static volatile bool action_available;
 static volatile uint32_t crc_error_count;
 static uint16_t tx_sequence;
 
@@ -79,6 +81,12 @@ static void process_complete_frame(uint32_t now_ms)
         g_debug_command_sequence = header.sequence;
         g_debug_command_received_ms = now_ms;
         ++g_debug_command_count;
+    } else if ((header.message_type == PROTOCOL_MSG_ACTION_REQUEST) &&
+               (header.payload_length == sizeof(ActionRequestPayload))) {
+        if (!action_available) {
+            memcpy(&pending_action, &rx_frame[HEADER_SIZE], sizeof(pending_action));
+            action_available = true;
+        }
     }
 }
 
@@ -87,6 +95,8 @@ void Protocol_Init(void)
     reset_rx();
     memset(&latest_command, 0, sizeof(latest_command));
     command_available = false;
+    memset(&pending_action, 0, sizeof(pending_action));
+    action_available = false;
     latest_command_ms = 0U;
     crc_error_count = 0U;
     tx_sequence = 0U;
@@ -165,6 +175,23 @@ bool Protocol_CommandIsFresh(uint32_t now_ms, uint32_t maximum_age_ms)
     return valid;
 }
 
+bool Protocol_TakeActionRequest(ActionRequestPayload *output)
+{
+    bool available;
+
+    if (output == NULL) {
+        return false;
+    }
+    __disable_irq();
+    available = action_available;
+    if (available) {
+        *output = pending_action;
+        action_available = false;
+    }
+    __enable_irq();
+    return available;
+}
+
 uint16_t Protocol_EncodeState(
     const RobotStatePayload *state,
     uint8_t *output,
@@ -191,6 +218,32 @@ uint16_t Protocol_EncodeState(
         &output[2],
         (uint16_t)(HEADER_SIZE - 2U + sizeof(RobotStatePayload)));
     memcpy(&output[HEADER_SIZE + sizeof(RobotStatePayload)], &crc, CRC_SIZE);
+    return frame_size;
+}
+
+uint16_t Protocol_EncodeActionStatus(
+    const ActionStatusPayload *status,
+    uint8_t *output,
+    uint16_t capacity)
+{
+    const uint16_t frame_size = (uint16_t)(
+        HEADER_SIZE + sizeof(ActionStatusPayload) + CRC_SIZE);
+    ProtocolHeader header;
+    uint16_t crc;
+
+    if ((status == NULL) || (output == NULL) || (capacity < frame_size)) {
+        return 0U;
+    }
+    header.magic = PROTOCOL_MAGIC;
+    header.version = PROTOCOL_VERSION;
+    header.message_type = PROTOCOL_MSG_ACTION_STATUS;
+    header.payload_length = (uint16_t)sizeof(ActionStatusPayload);
+    header.sequence = tx_sequence++;
+    memcpy(output, &header, HEADER_SIZE);
+    memcpy(&output[HEADER_SIZE], status, sizeof(ActionStatusPayload));
+    crc = crc16_ccitt(&output[2],
+                      (uint16_t)(HEADER_SIZE - 2U + sizeof(ActionStatusPayload)));
+    memcpy(&output[HEADER_SIZE + sizeof(ActionStatusPayload)], &crc, CRC_SIZE);
     return frame_size;
 }
 
