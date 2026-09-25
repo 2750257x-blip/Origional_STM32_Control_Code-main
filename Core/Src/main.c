@@ -881,9 +881,9 @@ void Close_All_Old_Func(void)
 void LCD_State_Machine(void)
 {
   /* ready 是12位掩码：bit0~5 右腿(FDCAN1)，bit6~11 左腿(FDCAN2)，按位拆开显示，1=该电机已上报 */
-  LCD_DisplayBinary(166, 34, motor_status_ready >>6, 6);          /* 右腿 bit5~bit0 */
+  LCD_DisplayBinary(118, 34, motor_status_ready >>6, 6);          /* 右腿 bit5~bit0 */
   LCD_DisplayBinary(118, 58, motor_status_ready, 6);     /* 左腿 bit11~bit6 */
-  LCD_DisplayHex(118, 82, motor_status_mode, 4);
+  LCD_DisplayHex(166, 82, motor_status_mode, 4);
   LCD_DisplayHex(166, 106, motor_status_fault, 4);
   LCD_DisplayHex(142, 130, (uint16_t)imu_data_ready, 2);
   LCD_DisplayNumber(94, 154, (uint32_t)system_control_cycle, 6);
@@ -922,6 +922,18 @@ void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, flo
       EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
       EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
     }
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, rangle1, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, rangle2, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, rangle3, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, rangle4, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, rangle5, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, rangle6, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, langle1, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, langle2, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, langle3, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, langle4, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, langle5, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, langle6, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
   }
     HAL_TIM_Base_Stop_IT(&htim4);
     __HAL_TIM_SET_COUNTER(&htim4, 0);
