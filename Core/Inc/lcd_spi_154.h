@@ -84,6 +84,7 @@ void 	LCD_DisplayText(uint16_t x, uint16_t y, char *pText) ;		// 显示字符串
 void  LCD_ShowNumMode(uint8_t mode);		// 设置变量显示模式，多余位填充空格还是填充0
 void  LCD_DisplayNumber( uint16_t x, uint16_t y, int32_t number,uint8_t len) ;					// 显示整数
 void  LCD_DisplayHex( uint16_t x, uint16_t y, uint16_t number, uint8_t len);                 // 显示16进制整数
+void  LCD_DisplayBinary( uint16_t x, uint16_t y, uint16_t number, uint8_t bits);            // 显示二进制，固定bits位，高位在左
 void  LCD_DisplayDecimals( uint16_t x, uint16_t y, double number,uint8_t len,uint8_t decs);	// 显示小数
 
 //>>>>>	2D图形函数

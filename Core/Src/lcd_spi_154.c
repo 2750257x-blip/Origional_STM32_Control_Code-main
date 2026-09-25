@@ -821,6 +821,26 @@ void  LCD_DisplayHex( uint16_t x, uint16_t y, uint16_t number, uint8_t len)
 	}
 	LCD_DisplayString( x, y,(char *)Number_Buffer) ;
 }
+
+//显示二进制，固定bits位，高位在左
+void  LCD_DisplayBinary( uint16_t x, uint16_t y, uint16_t number, uint8_t bits)
+{
+	char Number_Buffer[17];
+	uint8_t i;
+
+	if (bits > 16U)
+	{
+		bits = 16U;
+	}
+
+	for (i = 0U; i < bits; ++i)
+	{
+		Number_Buffer[i] = (char)('0' + ((number >> (bits - 1U - i)) & 0x01U));
+	}
+	Number_Buffer[bits] = '\0';
+
+	LCD_DisplayString( x, y,(char *)Number_Buffer) ;
+}
 /***************************************************************************************************************************************
 *	函 数 名:	LCD_DisplayDecimals
 *

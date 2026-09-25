@@ -21,8 +21,8 @@
 #define SAFE_LEG_PITCH_MIN   -2.0f
 #define SAFE_LEG_PITCH_MAX    2.0f
 // leg_roll: 大腿侧摆
-#define SAFE_LEG_ROLL_MIN    -1.5f
-#define SAFE_LEG_ROLL_MAX     1.5f
+#define SAFE_LEG_ROLL_MIN    -0.8f
+#define SAFE_LEG_ROLL_MAX     0.8f
 // leg_yaw: 大腿旋转
 #define SAFE_LEG_YAW_MIN     -1.5f
 #define SAFE_LEG_YAW_MAX      1.5f
