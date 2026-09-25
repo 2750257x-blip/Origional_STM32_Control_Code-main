@@ -34,7 +34,7 @@ volatile uint32_t g_debug_invalid_command_count;
 extern volatile uint32_t system_control_cycle;
  
 const float kp_add = 1.5f;
-const float kd_add = 2.0f;
+const float kd_add = 2.1f;
 static float limit_gain_scale(float scale)
 {
     if (!isfinite(scale) || (scale < 0.0f)) {

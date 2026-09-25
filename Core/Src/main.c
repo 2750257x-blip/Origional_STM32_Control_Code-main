@@ -922,23 +922,22 @@ void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, flo
       EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
       EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
     }
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, rangle1, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, rangle2, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, rangle3, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, rangle4, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, rangle5, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, rangle6, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, langle1, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, langle2, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, langle3, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, langle4, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, langle5, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, langle6, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
   }
     HAL_TIM_Base_Stop_IT(&htim4);
     __HAL_TIM_SET_COUNTER(&htim4, 0);
     __HAL_TIM_CLEAR_FLAG(&htim4, TIM_FLAG_UPDATE);
-
+    EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, rangle1, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, rangle2, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, rangle3, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, rangle4, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, rangle5, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, rangle6, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, langle1, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, langle2, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, langle3, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, langle4, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, langle5, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, langle6, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
     Goto_ready = 0;
     Goto_number = 0;
 }
