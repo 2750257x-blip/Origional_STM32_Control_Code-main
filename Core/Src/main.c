@@ -87,6 +87,9 @@ float_t motor_control_buf_float[24] = {0};
 
 uint8_t usb_tx_buffer[120] = {0};
 
+uint8_t action_count = 0;
+uint8_t action_count_finished = 0;
+
 
 volatile uint32_t system_control_cycle = 0;
 volatile uint32_t system_control_cycle_copy = 0;
@@ -108,12 +111,12 @@ volatile float Goto_walklength[12] = {0.0f};
 volatile uint32_t action_tick = 0;        /* TIM2 中断里累加 */
 static uint8_t    action_step = 0;        /* 当前动作走到第几步 */
 static uint32_t   action_step_tick = 0;   /* 当前步骤的计时起点 */
-static Robot_StateTypeDef prev_robot_state = ROBOT_STATE_IDLE;
-static ActionStatusPayload pending_action_status;
-static uint8_t pending_action_status_valid = 0U;
-static uint32_t active_event_id = 0U;
-static uint8_t active_action_id = 0U;
-static uint8_t active_action_status = 0U;
+static Robot_StateTypeDef prev_robot_state = ROBOT_STATE_IDLE;     // 上一个状态机状态，用于检测状态切换
+static ActionStatusPayload pending_action_status;                  //  上一个动作的状态，用于发送给上位机
+static uint8_t pending_action_status_valid = 0U;                   //  上一个动作的状态是否有效，用于发送给上位机
+static uint32_t active_event_id = 0U;                  //  当前正在执行的动作事件 ID，用于发送给上位机
+static uint8_t active_action_id = 0U;                  //  当前正在执行的动作 ID，用于发送给上位机
+static uint8_t active_action_status = 0U;              //  当前正在执行的动作状态，用于发送给上位机
 
 uint8_t uart_rx_buf1[120] = {0};
 uint8_t uart_rx_data1[120] = {0};
@@ -251,7 +254,7 @@ int main(void)
   LCD_DisplayText(10, 130, "imu_ready: ");
   LCD_DisplayHex(142, 130, 0, 2);
   LCD_DisplayText(10, 154, "cycle: ");
-  LCD_DisplayNumber(94, 154, 0, 6);
+  LCD_DisplayNumber(94, 154, 0, 2);
   LCD_DisplayText(10, 178, "warning: ");
   LCD_DisplayNumber(118, 178, 0, 4);
   LCD_DisplayText(10, 202, "imu_n: ");
@@ -444,39 +447,43 @@ void Robot_State_Machine(void)
     }
 }
 
+
+// 记录当前动作的状态，并标记为有效，等待发送给上位机
 static void Queue_Action_Status(uint32_t event_id, uint8_t action_id, uint8_t status)
 {
-  pending_action_status.event_id = event_id;
-  pending_action_status.action_id = action_id;
-  pending_action_status.status = status;
-  pending_action_status_valid = 1U;
+  pending_action_status.event_id = event_id;          // 记录当前动作的事件 ID
+  pending_action_status.action_id = action_id;        // 记录当前动作的动作 ID
+  pending_action_status.status = status;              // 记录当前动作的状态
+  pending_action_status_valid = 1U;                   // 标记为有效，等待发送给上位机
 }
 
+
+// 处理上位机发来的动作请求，根据请求的动作 ID 切换状态机，并发送动作状态给上位机
 static void Handle_Action_Request(const ActionRequestPayload *request)
 {
   Robot_StateTypeDef next_state;
 
-  if (request->event_id == active_event_id && active_event_id != 0U) {
+  if (request->event_id == active_event_id && active_event_id != 0U) {         // 如果当前动作的事件 ID 与上位机请求的事件 ID 相同，说明上位机重复发送了请求
     Queue_Action_Status(request->event_id, request->action_id,
         request->action_id == active_action_id ? active_action_status : ACTION_STATUS_INVALID);
     return;
   }
-  switch (request->action_id) {
-    case 1U: next_state = ROBOT_STATE_LHAND; break;
-    case 2U: next_state = ROBOT_STATE_RHAND; break;
-    case 5U: next_state = ROBOT_STATE_BOTHH; break;
-    case 6U: next_state = ROBOT_STATE_HEAD; break;
+  switch (request->action_id) {                                // 根据上位机请求的动作 ID 切换状态机
+    case 1U: next_state = ROBOT_STATE_LHAND;action_count++; break;
+    case 2U: next_state = ROBOT_STATE_RHAND; action_count++; break;
+    case 5U: next_state = ROBOT_STATE_BOTHH; action_count++; break;
+    case 6U: next_state = ROBOT_STATE_HEAD; action_count++; break;
     default:
       Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_INVALID);
       return;
   }
-  if (request->event_id == 0U) {
+  if (request->event_id == 0U) {                           // 如果上位机请求的事件 ID 为 0，说明上位机没有正确设置事件 ID，返回无效状态
     Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_INVALID);
     return;
   }
   if (robot_state != ROBOT_STATE_IDLE || g_debug_jetson_control_active == 0U ||
       !Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
-      active_action_status == ACTION_STATUS_ACCEPTED) {
+      active_action_status == ACTION_STATUS_ACCEPTED) {                                  // 如果当前状态机不在空闲状态，或者上位机控制未激活，或者上位机命令不新鲜，或者当前动作还在执行中，返回忙碌状态
     Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_BUSY);
     return;
   }
@@ -493,7 +500,9 @@ void ROBOT_Comms_Service(void)
 {
   // 处理通过USB CDC收到并经过CRC校验的Nano关节目标
   JetsonRobotBridge_ProcessCommand();
+  
 
+  // 处理通过USB CDC收到的动作请求
   if (active_action_status == ACTION_STATUS_ACCEPTED) {
     if (!Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
         g_debug_jetson_control_active == 0U) {
@@ -586,11 +595,12 @@ void ROBOT_RHAND(void)
       break;
 
     case 1:
-      if (!Action_Step_Elapsed(3200U)) return;
+      if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
+      action_count_finished++;
       break;
   }
 }
@@ -608,11 +618,12 @@ void ROBOT_LHAND(void)
       break;
 
     case 1:
-      if (!Action_Step_Elapsed(3200U)) return;
+      if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
+      action_count_finished++;
       break;
   }
 }
@@ -669,6 +680,7 @@ void ROBOT_HEAD(void)
       robot_state = ROBOT_STATE_IDLE;
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
+      action_count_finished++;
       break;
   }
 }
@@ -695,12 +707,13 @@ void ROBOT_BOTHH(void)
       break;
 
     case 1:
-      if (!Action_Step_Elapsed(3200U)) return;
+      if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
+      action_count_finished++;
       break;
   }
 }
@@ -959,7 +972,8 @@ void LCD_State_Machine(void)
   LCD_DisplayHex(166, 82, motor_status_mode, 4);
   LCD_DisplayHex(166, 106, motor_status_fault, 4);
   LCD_DisplayHex(142, 130, (uint16_t)imu_data_ready, 2);
-  LCD_DisplayNumber(94, 154, (uint32_t)system_control_cycle, 6);
+  LCD_DisplayNumber(94, 154, (uint32_t)action_count, 2);
+  LCD_DisplayNumber(142, 154, (uint32_t)action_count_finished, 2);
   LCD_DisplayNumber(118, 178, (uint32_t)imu_warning, 4);
   LCD_DisplayNumber(94, 202, imu_data_count, 8);
 }
