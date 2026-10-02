@@ -18,20 +18,46 @@ void JetsonRobotBridge_OnUsbReceive(uint8_t *data, uint32_t length);
 /*
  * 停车读卡时的机身重摆（Nano 发动作号 7 / 8）。
  *
- * Latch 记下那一刻的姿态，Release 之后恢复真实上报；两者之间上报的都是
- * 锁存值。上位机的图卡几何按安装角 45° 标定，重摆把机身扳回那个姿态，
- * 所以锁存值在重摆之后恰好是真值 —— Nano 看到的姿态从头到尾没变。
+ * 模型停下后进入站姿，而那个站姿在实机上后仰约 20° —— 相机因此只朝下 25°，
+ * 图卡看不清。重摆把机身扳回安装姿态 45°。
+ *
+ * 「冻结」= 保留**加偏置之前的最后一个真值**。偏置落地那一刻「站着后仰」这个
+ * 事实就不成立了，所以只能在它还成立的时候记下来，之后一直报这个值。模型不
+ * 能知道自己被搬动了，否则它会去纠回来。
+ *
+ * ⚠️ 要冻的不只是四元数：Nano 的策略观测里还有加速度计、角速度和关节角，
+ *    只要还有一条通道在说真话，偏置就藏不住（加速度计静止时读的就是重力，
+ *    它和四元数说的是同一件事）。所以 Latch 把姿态、加速度、角速度一起冻住，
+ *    两个腿 pitch 关节的关节角/角速度则从上报值里把偏置减掉 —— 减在电机
+ *    坐标系、过 sign 之前，还原出来的正是模型自己下发的那个目标。
+ *
+ * ⚠️ 锁存点必须是**机身站定之后**那个站姿，不是走路中的某一瞬：模型停车后
+ *    期待的是站姿，喂它一个步态相位它会以为自己在走路。所以先等站定
+ *    （CardTiltBodySettled），再 Latch。状态机见 main.c 的 ROBOT_CARD_TILT()。
+ *
+ * ⚠️ 冻的是「加偏置之前」，而机身这时已经被搬到 45° 了 —— 上报值和相机真实
+ *    姿态**不一致**，这是故意的。所以视觉的图卡几何不能用这个上报值，得用
+ *    静态安装角；run_policy_vision.py 里按停车窗口区分。别把这条"修掉"。
  *
  * SetOffset 设腿 pitch 偏置（弧度，0 = 撤销）。Nano 每 20ms 发来的关节目标
  * 被叠加上这个偏置，不是被接管 —— 所以 Nano 那边不用停发，也不会打架。
  *
- * ⚠️ SetOffset 必须是**逐步**调用的，别一次给满：0.2 rad 是 11°，踝关节
- * 一步跳过去会直接把人掀了。状态机里按小步逼近，具体见 main.c 的
- * ROBOT_CARD_TILT()。
+ * ⚠️ SetOffset 必须是**逐步**调用的，别一次给满：0.35 rad 是 20°，一步跳
+ *    过去会直接把人掀了。状态机里按小步逼近，见 main.c 的 ROBOT_CARD_TILT()。
  */
 void JetsonRobotBridge_CardTiltLatch(void);
 void JetsonRobotBridge_CardTiltRelease(void);
 void JetsonRobotBridge_CardTiltSetOffset(float radians);
+
+/* 机身站定了没有：陀螺仪连续 CARD_TILT_QUIET_MS 都在门限以下。
+ * 门限抄的是 imu_filter.py 启动检查里那个 0.35 rad/s —— 那是验证过的
+ * 「这台机器人站着不动」的判据。等超过 CARD_TILT_SETTLE_MAX_MS 就按现状认，
+ * 免得机身一直微晃把整个图卡窗口耗掉。 */
+void JetsonRobotBridge_CardTiltSettleReset(void);
+uint8_t JetsonRobotBridge_CardTiltBodySettled(void);
+#define CARD_TILT_QUIET_RAD_S      0.35f
+#define CARD_TILT_QUIET_MS         150U
+#define CARD_TILT_SETTLE_MAX_MS    600U
 
 /* 重摆倾角总量，弧度，加在**左右 leg pitch** 两个关节的**电机**目标上。
  * 单位是电机坐标系（已经过了 motor_direction_target 的反向），左右两条腿

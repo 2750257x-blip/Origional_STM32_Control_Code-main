@@ -714,9 +714,13 @@ static float card_tilt_cmd = 0.0f;
 /*
  * 停车读卡：重摆机身。
  *
- * 上位机在停车那一刻发动作号 7。此刻机器人在走路，机身是直的，所以锁存下来
- * 的姿态就是相机安装角标定时的那个姿态；接下来把机身扳回那里，锁存值就重新
- * 变成真值 —— 上位机的图卡几何全程看到的姿态没变，但它是对的。
+ * 上位机在停车那一刻发动作号 7，但**不能立刻锁也不能立刻扳**：那一刻机器人
+ * 还在刹车，锁下来的是个步态相位。模型停车后进入的是站姿，它期待的就是站姿
+ * —— 喂它一个走路中的瞬时姿态，它会以为自己在走路。所以先等机身站定。
+ *
+ * 站定之后：锁存这一刻的姿态（**加偏置之前的最后一个真值**），再把机身一步步
+ * 扳回安装姿态。模型全程看到的还是那个站姿，它不会去纠。等超过
+ * CARD_TILT_SETTLE_MAX_MS 就按现状锁，免得机身一直微晃把窗口耗掉。
  *
  * ⚠️ 走完必须回 ROBOT_STATE_IDLE，但**偏置和锁存要留着**。
  *    Handle_Action_Request 里 `active_action_status == ACTION_STATUS_ACCEPTED`
@@ -727,28 +731,34 @@ void ROBOT_CARD_TILT(void)
 {
   switch (action_step)
   {
-    case 0:
-      JetsonRobotBridge_CardTiltLatch();
+    case 0:                                   /* 动作 7 到了：先别锁，等站定 */
       card_tilt_cmd = 0.0f;
       JetsonRobotBridge_CardTiltSetOffset(0.0f);
+      JetsonRobotBridge_CardTiltSettleReset();
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : TILT");
-      Action_Step_Begin();
       action_step = 1U;
       break;
 
-    case 1:                                   /* 逐步把机身扳回去 */
+    case 1:                                   /* 等机身站定，然后锁 */
+      if (!JetsonRobotBridge_CardTiltBodySettled()) return;
+      JetsonRobotBridge_CardTiltLatch();
+      Action_Step_Begin();
+      action_step = 2U;
+      break;
+
+    case 2:                                   /* 逐步把机身扳回去 */
       if (!Action_Step_Elapsed(CARD_TILT_STEP_MS)) return;
       card_tilt_cmd += CARD_TILT_STEP_RAD;
       if (card_tilt_cmd >= CARD_TILT_LEG_PITCH_RAD) {
         card_tilt_cmd = CARD_TILT_LEG_PITCH_RAD;
-        action_step = 2U;
+        action_step = 3U;
       }
       JetsonRobotBridge_CardTiltSetOffset(card_tilt_cmd);
       Action_Step_Begin();
       break;
 
-    case 2:                                   /* 到位：交还 IDLE，偏置和锁存都留着 */
+    case 3:                                   /* 到位：交还 IDLE，偏置和锁存都留着 */
       robot_state = ROBOT_STATE_IDLE;
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
