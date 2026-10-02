@@ -544,7 +544,11 @@ void ROBOT_Comms_Service(void)
       Servo_SetAngle(&htim1, TIM_CHANNEL_3, 90);
       active_action_status = ACTION_STATUS_FAILED;
       Queue_Action_Status(active_event_id, active_action_id, active_action_status);
-    } else if (robot_state == ROBOT_STATE_IDLE) {
+    } else if (robot_state == ROBOT_STATE_IDLE &&
+               JetsonRobotBridge_LeanSettled() != 0U) {
+      /* LEAN/RESTORE 不占 robot_state，光看 IDLE 会在收下的下一轮就报 DONE，
+       * 而前倾斜坡还要 580ms —— 上位机"发 LEAN 等 DONE"就会在机身还在倒的
+       * 时候开始读卡。1/2/5/6 那条路径不受影响：没做前倾时上面那个函数恒真。 */
       active_action_status = ACTION_STATUS_DONE;
       Queue_Action_Status(active_event_id, active_action_id, active_action_status);
     }

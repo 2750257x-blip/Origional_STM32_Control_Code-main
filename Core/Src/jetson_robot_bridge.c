@@ -191,6 +191,13 @@ void JetsonRobotBridge_SetLean(uint8_t active)
     lean_target = (active != 0U) ? LEAN_ANGLE_RAD : 0.0f;
 }
 
+/* 斜坡走完了没有。lean_offset_step() 到位时是直接赋值的，所以这里能比。
+ * 没在做前倾/恢复时两边都是 0，恒为真。 */
+uint8_t JetsonRobotBridge_LeanSettled(void)
+{
+    return (uint8_t)(lean_applied == lean_target);
+}
+
 static void stop_all_motors(void)
 {
     uint8_t index;
