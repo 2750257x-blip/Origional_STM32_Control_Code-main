@@ -17,6 +17,13 @@
 
 static uint32_t last_applied_command_count;
 
+/* 当前生效的踝关节偏置，由状态机逐步逼近 CARD_TILT_ANKLE_RAD */
+static volatile float card_tilt_offset_rad;
+/* 1 = 上报锁存姿态而不是真实姿态 */
+static volatile uint8_t card_tilt_latched;
+/* 触发那一刻锁存的姿态，重摆期间原样上报 */
+static float card_tilt_quat[4];
+
 /* ---- 反馈前向预测滤波 ---- */
 #define SMOOTHING_ALPHA         0.0f     /* 0~1: 越大越跟随预测值 */
 #define FRAME_ANGLE_LIMIT       0.5f     /* 反馈偏离目标的最大单帧变化量 (rad) */
@@ -68,6 +75,19 @@ static bool command_targets_are_valid(const RobotCommandPayload *command)
     return true;
 }
 
+/* 重摆期间给踝关节的偏置。
+ *
+ * 按电机 ID 判，不按协议下标：本文件开头那段注释说协议 0..5 是左腿，而上位机
+ * 的 config.JOINT_NAMES 是右腿在前，两边对不上，按电机 ID 判就不用先弄清谁对。
+ */
+static float card_tilt_offset(uint8_t motor_id)
+{
+    if ((motor_id != l_ankle_pitch) && (motor_id != r_ankle_pitch)) {
+        return 0.0f;
+    }
+    return card_tilt_offset_rad;
+}
+
 static void apply_position_targets(const RobotCommandPayload *command)
 {
     static const float base_kp[6] = {
@@ -95,6 +115,7 @@ static void apply_position_targets(const RobotCommandPayload *command)
         //  if(index == 0U) {
         //     target = target - 0.08f;
         // }
+        target += card_tilt_offset(left_motor_id[index]);
         g_debug_motor_target[index] = target;
         Motor_limitCtrl_float(
             &hfdcan2,
@@ -112,7 +133,8 @@ static void apply_position_targets(const RobotCommandPayload *command)
             command->joint_target[protocol_index]);
         // if(index == 0U) {
         //     target = target +  0.08f;
-        // }    
+        // }
+        target += card_tilt_offset(right_motor_id[index]);
         g_debug_motor_target[protocol_index] = target;
         Motor_limitCtrl_float(
             &hfdcan1,
@@ -145,6 +167,36 @@ void JetsonRobotBridge_Init(void)
     g_debug_invalid_command_count = 0U;
     memset(target_position, 0, sizeof(target_position));
     last_send_tick_ms = HAL_GetTick();
+    card_tilt_offset_rad = 0.0f;
+    card_tilt_latched = 0U;
+    memset(card_tilt_quat, 0, sizeof(card_tilt_quat));
+}
+
+void JetsonRobotBridge_CardTiltLatch(void)
+{
+    __disable_irq();
+    memcpy(card_tilt_quat, &MotorIMU_Packet_float[30], sizeof(card_tilt_quat));
+    card_tilt_latched = 1U;
+    __enable_irq();
+}
+
+void JetsonRobotBridge_CardTiltRelease(void)
+{
+    card_tilt_latched = 0U;
+}
+
+void JetsonRobotBridge_CardTiltSetOffset(float radians)
+{
+    if (!isfinite(radians)) {
+        return;
+    }
+    if (radians > CARD_TILT_ANKLE_RAD) {
+        radians = CARD_TILT_ANKLE_RAD;
+    }
+    if (radians < -CARD_TILT_ANKLE_RAD) {
+        radians = -CARD_TILT_ANKLE_RAD;
+    }
+    card_tilt_offset_rad = radians;
 }
 
 void JetsonRobotBridge_ProcessCommand(void)
@@ -263,7 +315,14 @@ uint8_t JetsonRobotBridge_SendState(void)
     }
     memcpy(state.accel_m_s2, &feedback[24], sizeof(state.accel_m_s2));
     memcpy(state.gyro_rad_s, &feedback[27], sizeof(state.gyro_rad_s));
-    memcpy(state.orientation_wxyz, &feedback[30], sizeof(state.orientation_wxyz));
+    if (card_tilt_latched != 0U) {
+        /* 重摆期间上报锁存姿态。重摆把机身扳回锁存那一刻的姿态，所以这个值
+         * 在重摆到位之后是真值 —— 上位机的图卡几何按它算，全程不受影响。 */
+        memcpy(state.orientation_wxyz, card_tilt_quat,
+               sizeof(state.orientation_wxyz));
+    } else {
+        memcpy(state.orientation_wxyz, &feedback[30], sizeof(state.orientation_wxyz));
+    }
 
     if (mode_flags == 0x0FFFU) {
         state.status_flags |= STATE_MOTORS_ENABLED;

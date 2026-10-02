@@ -57,6 +57,8 @@ typedef enum
     ROBOT_STATE_TEST_IMU,         // 测试状态
     ROBOT_STATE_TEST_UART,            // 测试状态
     ROBOT_STATE_TEST_INIT,            // 测试状态
+    ROBOT_STATE_CARD_TILT,            // 停车读卡：重摆机身回触发那一刻的姿态
+    ROBOT_STATE_CARD_RESTORE,         // 停车读卡：撤销重摆，恢复真实姿态上报
 }Robot_StateTypeDef;
 
 /* USER CODE END PTD */
@@ -155,6 +157,8 @@ void ROBOT_CROSS(void);
 void ROBOT_TEST_IMU(void);
 void ROBOT_TEST_UART(void);
 void ROBOT_TEST_INIT(void);
+void ROBOT_CARD_TILT(void);
+void ROBOT_CARD_RESTORE(void);
 
 void LCD_State_Machine(void);
 
@@ -438,6 +442,20 @@ void Robot_State_Machine(void)
         break;
       }
 
+      // 停车读卡：重摆机身
+      case ROBOT_STATE_CARD_TILT:
+      {
+        ROBOT_CARD_TILT();
+        break;
+      }
+
+      // 停车读卡：撤销重摆
+      case ROBOT_STATE_CARD_RESTORE:
+      {
+        ROBOT_CARD_RESTORE();
+        break;
+      }
+
       default:
       {
           robot_state = ROBOT_STATE_IDLE;
@@ -473,6 +491,11 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
     case 2U: next_state = ROBOT_STATE_RHAND; action_count++; break;
     case 5U: next_state = ROBOT_STATE_BOTHH; action_count++; break;
     case 6U: next_state = ROBOT_STATE_HEAD; action_count++; break;
+    /* 停车读卡的重摆 / 恢复。不是六种图形之一，也不改 action_state。
+     * 上位机每条请求都带新的 event_id（上面那段去重逻辑靠它），所以 7 和 8
+     * 不会被当成彼此的重复。 */
+    case 7U: next_state = ROBOT_STATE_CARD_TILT; break;
+    case 8U: next_state = ROBOT_STATE_CARD_RESTORE; break;
     default:
       Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_INVALID);
       return;
@@ -681,6 +704,89 @@ void ROBOT_HEAD(void)
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
+      break;
+  }
+}
+
+/* 当前已经施加的踝关节偏置，逐步逼近 CARD_TILT_ANKLE_RAD */
+static float card_tilt_cmd = 0.0f;
+
+/*
+ * 停车读卡：重摆机身。
+ *
+ * 上位机在停车那一刻发动作号 7。此刻机器人在走路，机身是直的，所以锁存下来
+ * 的姿态就是相机安装角标定时的那个姿态；接下来把机身扳回那里，锁存值就重新
+ * 变成真值 —— 上位机的图卡几何全程看到的姿态没变，但它是对的。
+ *
+ * ⚠️ 走完必须回 ROBOT_STATE_IDLE，但**偏置和锁存要留着**。
+ *    Handle_Action_Request 里 `active_action_status == ACTION_STATUS_ACCEPTED`
+ *    会把后续请求全判成 BUSY —— 而这个状态要是停在这儿不退，紧接着来的那条
+ *    图形动作（1/2/5/6）就会被拒掉。
+ */
+void ROBOT_CARD_TILT(void)
+{
+  switch (action_step)
+  {
+    case 0:
+      JetsonRobotBridge_CardTiltLatch();
+      card_tilt_cmd = 0.0f;
+      JetsonRobotBridge_CardTiltSetOffset(0.0f);
+      LCD_ClearRect(10, 10, 240, 24);
+      LCD_DisplayText(10, 10, "Mode : TILT");
+      Action_Step_Begin();
+      action_step = 1U;
+      break;
+
+    case 1:                                   /* 逐步把机身扳回去 */
+      if (!Action_Step_Elapsed(CARD_TILT_STEP_MS)) return;
+      card_tilt_cmd += CARD_TILT_STEP_RAD;
+      if (card_tilt_cmd >= CARD_TILT_ANKLE_RAD) {
+        card_tilt_cmd = CARD_TILT_ANKLE_RAD;
+        action_step = 2U;
+      }
+      JetsonRobotBridge_CardTiltSetOffset(card_tilt_cmd);
+      Action_Step_Begin();
+      break;
+
+    case 2:                                   /* 到位：交还 IDLE，偏置和锁存都留着 */
+      robot_state = ROBOT_STATE_IDLE;
+      LCD_ClearRect(10, 10, 240, 24);
+      LCD_DisplayText(0, 10, "Mode : IDLE");
+      break;
+  }
+}
+
+/*
+ * 停车读卡：撤销重摆。上位机在整段停车窗口关闭时发动作号 8。
+ * 同样走完回 IDLE —— 后面还要继续巡线。
+ */
+void ROBOT_CARD_RESTORE(void)
+{
+  switch (action_step)
+  {
+    case 0:
+      LCD_ClearRect(10, 10, 240, 24);
+      LCD_DisplayText(10, 10, "Mode : UNTILT");
+      Action_Step_Begin();
+      action_step = 1U;
+      break;
+
+    case 1:                                   /* 逐步放回 */
+      if (!Action_Step_Elapsed(CARD_TILT_STEP_MS)) return;
+      card_tilt_cmd -= CARD_TILT_STEP_RAD;
+      if (card_tilt_cmd <= 0.0f) {
+        card_tilt_cmd = 0.0f;
+        action_step = 2U;
+      }
+      JetsonRobotBridge_CardTiltSetOffset(card_tilt_cmd);
+      Action_Step_Begin();
+      break;
+
+    case 2:                                   /* 机身回位了，姿态上报改回真实的 */
+      JetsonRobotBridge_CardTiltRelease();
+      robot_state = ROBOT_STATE_IDLE;
+      LCD_ClearRect(10, 10, 240, 24);
+      LCD_DisplayText(0, 10, "Mode : IDLE");
       break;
   }
 }
