@@ -23,8 +23,8 @@ static uint32_t last_applied_command_count;
 #define MAX_PREDICT_DT_MS       50U      /* 预测dt上限 (ms)，防止卡顿瞬间跳变 */
 
 /* ---- 前倾 20° + 反馈冻结 ---- */
-#define LEAN_ANGLE_RAD   0.3491f    /* 20° = 0.3491 rad，模型坐标系，叠加在站立姿态的髋 pitch 上 */
-#define LEAN_RAMP_RATE   0.6f       /* rad/s：20° 约 580 ms 爬到位，避免站立时阶跃冲击 */
+#define LEAN_ANGLE_RAD   -0.3491f    /* 20° = 0.3491 rad，模型坐标系，叠加在站立姿态的髋 pitch 上 */
+#define LEAN_RAMP_RATE   1.0f       /* rad/s：20° 约 580 ms 爬到位，避免站立时阶跃冲击 */
 
 static float    lean_target;        /* 0 或 LEAN_ANGLE_RAD */
 static float    lean_applied;       /* 带斜率地跟随 lean_target */
@@ -87,14 +87,17 @@ static float motor_direction_target(uint8_t joint_index, float model_target)
 {
     float target = model_target;
 
-    /* 前倾：只加在左右髋 pitch 上，加在模型坐标系、符号翻转之前 */
-    if ((joint_index == 0U) || (joint_index == 6U)) {
-        target += lean_applied;
-    }
     /* These four joint directions are reversed between the URDF and motors. */
     if ((joint_index == 0U) || (joint_index == 4U) ||
         (joint_index == 6U) || (joint_index == 10U)) {
-        return -target;
+        target = -target;
+    }
+    /* 前倾：左右髋 pitch 镜像装配，偏置在电机坐标系里反号——
+     * 左(0) +20°、右(6) −20°，其余关节不动 */
+    if (joint_index == 0U) {
+        target += lean_applied;
+    } else if (joint_index == 6U) {
+        target -= lean_applied;
     }
     return target;
 }
