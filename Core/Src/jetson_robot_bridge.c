@@ -201,14 +201,14 @@ uint8_t JetsonRobotBridge_LeanSettled(void)
     return (uint8_t)(lean_applied == lean_target);
 }
 
-static void stop_all_motors(void)
+/* 控制丢失/停机时不要瘫软（关掉输出电机会直接瘫下去），也不原地保持——
+ * 直接软复位，和按复位按钮一个效果。复位后 main() 重跑上电流程，
+ * motor_enable() 之后自然走到 main.c 里那次 Action_Goto，
+ * 机器人用 1 秒平滑回到初始位姿并撑住。
+ * 注意：本函数不返回，调用点后面不要再写任何代码。 */
+static void reboot_home(void)
 {
-    uint8_t index;
-
-    for (index = 0U; index < 6U; ++index) {
-        EL05_Motor_Stop(&hfdcan1, (uint8_t)(r_leg_pitch + index));
-        EL05_Motor_Stop(&hfdcan2, (uint8_t)(l_leg_pitch + index));
-    }
+    HAL_NVIC_SystemReset();
 }
 
 void JetsonRobotBridge_Init(void)
@@ -251,9 +251,7 @@ void JetsonRobotBridge_ProcessCommand(void)
 
     if (!fresh) {
         if (g_debug_jetson_control_active != 0U) {
-            stop_all_motors();
-            g_debug_jetson_control_active = 0U;
-            ++g_debug_watchdog_trip_count;
+            reboot_home();
         }
         return;
     }
@@ -266,16 +264,14 @@ void JetsonRobotBridge_ProcessCommand(void)
     if (((command.command_flags & COMMAND_ENABLE) == 0U) ||
         ((command.command_flags & COMMAND_ESTOP) != 0U)) {
         if (g_debug_jetson_control_active != 0U) {
-            stop_all_motors();
-            g_debug_jetson_control_active = 0U;
+            reboot_home();
         }
         return;
     }
 
     if (!command_targets_are_valid(&command)) {
         if (g_debug_jetson_control_active != 0U) {
-            stop_all_motors();
-            g_debug_jetson_control_active = 0U;
+            reboot_home();
         }
         ++g_debug_invalid_command_count;
         return;
