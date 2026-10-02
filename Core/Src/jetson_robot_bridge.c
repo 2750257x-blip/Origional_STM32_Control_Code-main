@@ -22,9 +22,9 @@ static uint32_t last_applied_command_count;
 #define FRAME_ANGLE_LIMIT       0.5f     /* 反馈偏离目标的最大单帧变化量 (rad) */
 #define MAX_PREDICT_DT_MS       50U      /* 预测dt上限 (ms)，防止卡顿瞬间跳变 */
 
-/* ---- 前倾 10° + 反馈冻结 ---- */
-#define LEAN_ANGLE_RAD   0.1745f    /* 10° = 0.1745 rad，模型坐标系，髋 pitch */
-#define LEAN_RAMP_RATE   0.6f       /* rad/s：10° 约 290 ms 爬到位，避免站立时阶跃冲击 */
+/* ---- 前倾 20° + 反馈冻结 ---- */
+#define LEAN_ANGLE_RAD   0.3491f    /* 20° = 0.3491 rad，模型坐标系，叠加在站立姿态的髋 pitch 上 */
+#define LEAN_RAMP_RATE   0.6f       /* rad/s：20° 约 580 ms 爬到位，避免站立时阶跃冲击 */
 
 static float    lean_target;        /* 0 或 LEAN_ANGLE_RAD */
 static float    lean_applied;       /* 带斜率地跟随 lean_target */
