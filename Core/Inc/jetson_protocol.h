@@ -19,6 +19,10 @@
 #define ACTION_STATUS_INVALID       4U
 #define ACTION_STATUS_FAILED        5U
 
+/* action_id 空间：3/4 是姿态事件，不参与 Robot_State_Machine */
+#define ACTION_ID_LEAN              3U
+#define ACTION_ID_RESTORE           4U
+
 #define COMMAND_ENABLE              (1UL << 0)
 #define COMMAND_ESTOP               (1UL << 1)
 #define COMMAND_CLEAR_FAULT         (1UL << 2)

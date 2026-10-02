@@ -22,6 +22,19 @@ static uint32_t last_applied_command_count;
 #define FRAME_ANGLE_LIMIT       0.5f     /* 反馈偏离目标的最大单帧变化量 (rad) */
 #define MAX_PREDICT_DT_MS       50U      /* 预测dt上限 (ms)，防止卡顿瞬间跳变 */
 
+/* ---- 前倾 10° + 反馈冻结 ---- */
+#define LEAN_ANGLE_RAD   0.1745f    /* 10° = 0.1745 rad，模型坐标系，髋 pitch */
+#define LEAN_RAMP_RATE   0.6f       /* rad/s：10° 约 290 ms 爬到位，避免站立时阶跃冲击 */
+
+static float    lean_target;        /* 0 或 LEAN_ANGLE_RAD */
+static float    lean_applied;       /* 带斜率地跟随 lean_target */
+static uint32_t lean_last_ms;
+
+/* 冻结快照：前倾指令生效前抓的那一帧，冻结期间原样回放给 Nano */
+static float frozen_joint_position[PROTOCOL_NUM_JOINTS];
+static float frozen_joint_velocity[PROTOCOL_NUM_JOINTS];
+static float frozen_imu[10];        /* accel(3) + gyro(3) + quat(4) */
+
 /* Nano 下发的目标位置，用作平滑参考（无滞后、无噪声） */
 static float target_position[PROTOCOL_NUM_JOINTS];
 static uint32_t last_send_tick_ms;
@@ -30,6 +43,8 @@ volatile float g_debug_motor_target[PROTOCOL_NUM_JOINTS];
 volatile uint8_t g_debug_jetson_control_active;
 volatile uint32_t g_debug_watchdog_trip_count;
 volatile uint32_t g_debug_invalid_command_count;
+volatile float   g_debug_pose_lean_applied;
+volatile uint8_t g_debug_feedback_freeze;
 
 extern volatile uint32_t system_control_cycle;
  
@@ -46,14 +61,42 @@ static float limit_gain_scale(float scale)
     return scale;
 }
 
+/* 前倾角按斜率爬向目标，避免站立状态下力矩瞬间打满 */
+static float lean_offset_step(void)
+{
+    uint32_t now = HAL_GetTick();
+    float dt = (float)(now - lean_last_ms) * 0.001f;
+    float max_step;
+
+    lean_last_ms = now;
+    if (dt > 0.2f) dt = 0.2f;              /* 卡顿保护，防止一帧跨太大 */
+    max_step = LEAN_RAMP_RATE * dt;
+
+    if (lean_applied < lean_target) {
+        lean_applied += max_step;
+        if (lean_applied > lean_target) lean_applied = lean_target;
+    } else if (lean_applied > lean_target) {
+        lean_applied -= max_step;
+        if (lean_applied < lean_target) lean_applied = lean_target;
+    }
+    g_debug_pose_lean_applied = lean_applied;
+    return lean_applied;
+}
+
 static float motor_direction_target(uint8_t joint_index, float model_target)
 {
+    float target = model_target;
+
+    /* 前倾：只加在左右髋 pitch 上，加在模型坐标系、符号翻转之前 */
+    if ((joint_index == 0U) || (joint_index == 6U)) {
+        target += lean_applied;
+    }
     /* These four joint directions are reversed between the URDF and motors. */
     if ((joint_index == 0U) || (joint_index == 4U) ||
         (joint_index == 6U) || (joint_index == 10U)) {
-        return -model_target;
+        return -target;
     }
-    return model_target;
+    return target;
 }
 
 static bool command_targets_are_valid(const RobotCommandPayload *command)
@@ -90,6 +133,8 @@ static void apply_position_targets(const RobotCommandPayload *command)
     float kd_scale = 1.0f;
     uint8_t index;
 
+    (void)lean_offset_step();
+
     for (index = 0U; index < 6U; ++index) {
         float target = motor_direction_target(index, command->joint_target[index]);
         //  if(index == 0U) {
@@ -125,6 +170,27 @@ static void apply_position_targets(const RobotCommandPayload *command)
     system_control_cycle ++;
 }
 
+void JetsonRobotBridge_CaptureFrozenState(void)
+{
+    uint8_t index;
+
+    __disable_irq();
+    for (index = 0U; index < PROTOCOL_NUM_JOINTS; ++index) {
+        float sign = ((index == 0U) || (index == 4U) ||
+                      (index == 6U) || (index == 10U)) ? -1.0f : 1.0f;
+        frozen_joint_position[index] = sign * MotorIMU_Packet_float[index * 2U];
+        frozen_joint_velocity[index] = sign * MotorIMU_Packet_float[index * 2U + 1U];
+    }
+    memcpy(frozen_imu, &MotorIMU_Packet_float[24], sizeof(frozen_imu));
+    __enable_irq();
+}
+
+void JetsonRobotBridge_SetLean(uint8_t active)
+{
+    lean_last_ms = HAL_GetTick();
+    lean_target = (active != 0U) ? LEAN_ANGLE_RAD : 0.0f;
+}
+
 static void stop_all_motors(void)
 {
     uint8_t index;
@@ -144,6 +210,14 @@ void JetsonRobotBridge_Init(void)
     g_debug_watchdog_trip_count = 0U;
     g_debug_invalid_command_count = 0U;
     memset(target_position, 0, sizeof(target_position));
+    lean_target = 0.0f;
+    lean_applied = 0.0f;
+    lean_last_ms = HAL_GetTick();
+    g_debug_pose_lean_applied = 0.0f;
+    g_debug_feedback_freeze = 0U;
+    memset(frozen_joint_position, 0, sizeof(frozen_joint_position));
+    memset(frozen_joint_velocity, 0, sizeof(frozen_joint_velocity));
+    memset(frozen_imu, 0, sizeof(frozen_imu));
     last_send_tick_ms = HAL_GetTick();
 }
 
@@ -264,6 +338,16 @@ uint8_t JetsonRobotBridge_SendState(void)
     memcpy(state.accel_m_s2, &feedback[24], sizeof(state.accel_m_s2));
     memcpy(state.gyro_rad_s, &feedback[27], sizeof(state.gyro_rad_s));
     memcpy(state.orientation_wxyz, &feedback[30], sizeof(state.orientation_wxyz));
+
+    /* 冻结期间回放前倾前的快照：上位机拿假数据做识别，电机侧闭环不受影响。
+     * timestamp_us 不冻——它是"新一帧"的单调时钟，冻掉会让上位机误判过期。 */
+    if (g_debug_feedback_freeze != 0U) {
+        memcpy(state.joint_position, frozen_joint_position, sizeof(state.joint_position));
+        memcpy(state.joint_velocity, frozen_joint_velocity, sizeof(state.joint_velocity));
+        memcpy(state.accel_m_s2, &frozen_imu[0], sizeof(state.accel_m_s2));
+        memcpy(state.gyro_rad_s, &frozen_imu[3], sizeof(state.gyro_rad_s));
+        memcpy(state.orientation_wxyz, &frozen_imu[6], sizeof(state.orientation_wxyz));
+    }
 
     if (mode_flags == 0x0FFFU) {
         state.status_flags |= STATE_MOTORS_ENABLED;

@@ -468,6 +468,38 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
         request->action_id == active_action_id ? active_action_status : ACTION_STATUS_INVALID);
     return;
   }
+  /* ---- 姿态事件（前倾/恢复）：不占用 robot_state，所以不走下面的状态机切换
+   *      和 IDLE 守卫——前倾要跨越后续动作持续存在，而动作本身会把
+   *      robot_state 从 IDLE 改走。这里单独处理，直接回 ACCEPTED。 ---- */
+  if (request->action_id == ACTION_ID_LEAN ||
+      request->action_id == ACTION_ID_RESTORE) {
+    if (request->event_id == 0U ||
+        g_debug_jetson_control_active == 0U ||
+        !Protocol_CommandIsFresh(HAL_GetTick(), 100U)) {
+      Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_BUSY);
+      return;
+    }
+    if (request->action_id == ACTION_ID_LEAN) {
+      if (robot_state != ROBOT_STATE_IDLE) {          // 只在空闲姿态下允许前倾
+        Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_BUSY);
+        return;
+      }
+      if (g_debug_feedback_freeze == 0U) {
+        JetsonRobotBridge_CaptureFrozenState();       // 先抓"前倾前"的那一帧
+        g_debug_feedback_freeze = 1U;
+      }
+      JetsonRobotBridge_SetLean(1U);                  // 再改目标角度
+    } else {
+      JetsonRobotBridge_SetLean(0U);
+      g_debug_feedback_freeze = 0U;
+    }
+    active_event_id = request->event_id;
+    active_action_id = request->action_id;
+    active_action_status = ACTION_STATUS_ACCEPTED;
+    Queue_Action_Status(active_event_id, active_action_id, active_action_status);
+    return;
+  }
+
   switch (request->action_id) {                                // 根据上位机请求的动作 ID 切换状态机
     case 1U: next_state = ROBOT_STATE_LHAND;action_count++; break;
     case 2U: next_state = ROBOT_STATE_RHAND; action_count++; break;
