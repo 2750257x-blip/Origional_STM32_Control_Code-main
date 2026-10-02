@@ -115,10 +115,18 @@ static float card_tilt_offset(uint8_t motor_id)
 }
 
 /* 同一个偏置的变化率。位置减偏置、速度减变化率，两者才自洽 ——
- * 0.35 rad / 0.4 s 是 0.83 rad/s，比站着不动时关节的真实速度大得多。 */
+ * 0.35 rad / 0.4 s 是 0.83 rad/s，比站着不动时关节的真实速度大得多。
+ *
+ * ⚠️ 只有刚调过偏置才算还在动。状态机走完就没入再调 SetOffset 了，这个变化率
+ *    必须自己过期 —— 留在那儿等于给这两个关节的上报速度加一个**永久**的
+ *    0.83 rad/s 偏差，而上位机正是靠 qd 判断"停稳了没有"（阈值 0.2）：偏着
+ *    0.83，下一张卡会在 wait_stop 里一直等不到 stopped，最后超时把进程打断。 */
 static float card_tilt_offset_rate(uint8_t motor_id)
 {
     if ((motor_id != l_leg_pitch) && (motor_id != r_leg_pitch)) {
+        return 0.0f;
+    }
+    if ((HAL_GetTick() - card_tilt_rate_tick_ms) > CARD_TILT_RATE_STALE_MS) {
         return 0.0f;
     }
     return card_tilt_rate_rad_s;
@@ -217,6 +225,11 @@ void JetsonRobotBridge_CardTiltLatch(void)
 void JetsonRobotBridge_CardTiltRelease(void)
 {
     card_tilt_latched = 0U;
+}
+
+float JetsonRobotBridge_CardTiltGetOffset(void)
+{
+    return card_tilt_offset_rad;
 }
 
 void JetsonRobotBridge_CardTiltSetOffset(float radians)

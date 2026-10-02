@@ -59,6 +59,14 @@ uint8_t JetsonRobotBridge_CardTiltBodySettled(void);
 #define CARD_TILT_QUIET_MS         150U
 #define CARD_TILT_SETTLE_MAX_MS    600U
 
+/* 偏置的变化率多久算过期。状态机每 CARD_TILT_STEP_MS 调一次 SetOffset，
+ * 两次没来就说明斜坡停了 —— 之后再减这个变化率就是纯偏差。 */
+#define CARD_TILT_RATE_STALE_MS    (2U * CARD_TILT_STEP_MS)
+
+/* 当前已经施加的偏置。状态机用它做起点，别让重摆从 0 重新爬 —— 万一上一次的
+ * 恢复被丢掉，偏置还在身上，从 0 开始就是一步 20° 的跳变。 */
+float JetsonRobotBridge_CardTiltGetOffset(void);
+
 /* 重摆倾角总量，弧度，加在**左右 leg pitch** 两个关节的**电机**目标上。
  * 单位是电机坐标系（已经过了 motor_direction_target 的反向），左右两条腿
  * 用同一个数 —— 镜像在电机那一侧，不在这里。

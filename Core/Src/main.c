@@ -732,8 +732,9 @@ void ROBOT_CARD_TILT(void)
   switch (action_step)
   {
     case 0:                                   /* 动作 7 到了：先别锁，等站定 */
-      card_tilt_cmd = 0.0f;
-      JetsonRobotBridge_CardTiltSetOffset(0.0f);
+      /* 从当前值开始加，不是从 0：偏置只该由恢复动作降下去。万一上一次的恢复
+       * 被 BUSY 丢掉了，偏置还在身上，直接清零就是一步 20° 的跳变。 */
+      card_tilt_cmd = JetsonRobotBridge_CardTiltGetOffset();
       JetsonRobotBridge_CardTiltSettleReset();
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : TILT");
