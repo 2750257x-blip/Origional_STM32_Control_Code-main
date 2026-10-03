@@ -56,7 +56,7 @@ const float cross_frames[CROSS_FRAME_COUNT][CROSS_JOINT_COUNT] = {
     { -0.13326720893383026, 0.14510202407836914, -0.3599322438240051, 0.08082711696624756, -0.13815218210220337, 0.13322126865386963, 0.09061736613512039, -0.08285555988550186, 0.13742244243621826, -0.06295260787010193, 0.028985606506466866, -0.08620160818099976 },   /* 37 */
 };
 
-float time_sca = 1.0f;
+uint8_t time_sca = 1U;
 
 /* 按绝对时间片等待下一个节拍。用累加的绝对时刻而不是 HAL_Delay，
  * 避免每帧多出来的执行时间累积成漂移。 */
@@ -67,7 +67,7 @@ static void cross_wait_next_tick(uint32_t *next_ms)
     }
 }
 
-void Cross_Play(float time_scale, uint32_t loops)
+void Cross_Play(uint8_t time_scale, uint32_t loops)
 {
     float    target[CROSS_JOINT_COUNT];
     float    step;
@@ -75,13 +75,13 @@ void Cross_Play(float time_scale, uint32_t loops)
     uint32_t loop;
     uint32_t next_ms;
 
-    if (!isfinite(time_scale) || (time_scale <= 0.0f) || (loops == 0U)) {
+    if ((time_scale == 0U) || (loops == 0U)) {
         return;
     }
 
     /* 一条轨迹切成多少个 20ms 节拍：倍数越大节拍越多、整体越慢。
-     * step 保证帧位置正好覆盖 0~38 一整圈，不受取整误差影响。 */
-    ticks = (uint32_t)((float)CROSS_FRAME_COUNT * time_scale + 0.5f);
+     * step 保证帧位置正好覆盖 0~38 一整圈。 */
+    ticks = (uint32_t)CROSS_FRAME_COUNT * (uint32_t)time_scale;
     if (ticks == 0U) {
         ticks = 1U;
     }
@@ -99,7 +99,8 @@ void Cross_Play(float time_scale, uint32_t loops)
             float    frac      = frame_pos - (float)index;
             uint8_t  joint;
 
-            /* 线性插值。time_scale = 1 时 frac 恒为 0，等于原样播放。
+            /* 线性插值。time_scale = 1 时 frac 恒为 0，等于原样播放（其余整数倍
+             * 靠 ticks 把 38 帧摊开，帧与帧之间插值，所以放慢也是平滑的）。
              * 再乘上每个关节自己的倍率。 */
             for (joint = 0U; joint < CROSS_JOINT_COUNT; ++joint) {
                 float a = cross_frames[index][joint];

@@ -41,8 +41,8 @@ static uint32_t lean_last_ms;
  * 左右腿是 mirror 装配，所以偏置反号：左腿 +bias，右腿 −bias。
  * 单位 rad（0.0175 rad ≈ 1°），可正可负，0 表示不加。
  * 直接改这两个量（ST-Link Live Expressions / 调试器），下一帧生效。 */
-volatile float g_bias_hip_roll   = -0.02f;   /* 髋 roll：左 joint 1，右 joint 7 */
-volatile float g_bias_ankle_roll = -0.02f;   /* 踝 roll：左 joint 5，右 joint 11 */
+volatile float g_bias_hip_roll   = -0.03f;   /* 髋 roll：左 joint 1，右 joint 7 */
+volatile float g_bias_ankle_roll = -0.03f;   /* 踝 roll：左 joint 5，右 joint 11 */
 
 /* ---- 前馈力矩倍数（每个关节独立）----
  * 每个电机额外下发一份前馈力矩： torque_ff = (目标角度 - 当前角度) × 该关节倍数，
@@ -63,8 +63,8 @@ volatile float g_bias_ankle_roll = -0.02f;   /* 踝 roll：左 joint 5，右 joi
  * 注意别调太大：它相当于在 kp 之外又叠了一层 P 控制，太大容易自激抖动。
  * 协议侧会自动把结果限到 ±6 N·m。 */
 volatile float g_ff_torque_gain[PROTOCOL_NUM_JOINTS] = {
-    5.0f, 5.0f, 5.0f, 0.0f, 0.0f, 0.0f,
-    5.0f, 5.0f, 5.0f, 0.0f, 0.0f, 0.0f
+    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
 };
 
 /* 冻结快照：前倾指令生效前抓的那一帧，冻结期间原样回放给 Nano */

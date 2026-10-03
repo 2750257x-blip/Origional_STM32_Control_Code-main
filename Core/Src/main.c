@@ -859,6 +859,7 @@ void ROBOT_TEST_INIT(void)
 void BUTTON_CHANGE(void)
 {
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET) {
+      HAL_Delay(500);
       Cross_Play(time_sca, 1U);
       HAL_Delay(500);
       Action_Goto(0.20f, 0.0f, 0.0f, -0.30f, -0.15f, 0.0f, -0.20f, 0.0f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
@@ -866,16 +867,16 @@ void BUTTON_CHANGE(void)
 
 
       if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
-      time_sca++;
-      if((time_sca -5.0f) <0.1) {
-          time_sca = 1.0f; // 防止溢出
+      time_sca += 1U;
+      if(time_sca == 5U) {
+          time_sca = 1U; // 防止溢出
         }
       }
 
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
         g_cross_scale[0] += 0.1f;
         g_cross_scale[6] += 0.1f;
-        if((g_cross_scale[0] -1.6f) <0.01) {
+        if(g_cross_scale[0] > 1.55f) {
           g_cross_scale[0] = 1.0f; // 防止溢出
           g_cross_scale[6] = 1.0f;
         }
@@ -884,7 +885,7 @@ void BUTTON_CHANGE(void)
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1) == GPIO_PIN_SET){
         g_cross_scale[3] += 0.1f;
         g_cross_scale[9] += 0.1f;
-         if((g_cross_scale[3] -1.6f) <0.01) {
+         if(g_cross_scale[3] > 1.55f) {
           g_cross_scale[3] = 1.0f; // 防止溢出
           g_cross_scale[9] = 1.0f;
         }
@@ -893,7 +894,7 @@ void BUTTON_CHANGE(void)
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
         g_cross_scale[5] += 0.1f;
         g_cross_scale[11] += 0.1f;
-         if((g_cross_scale[5] -1.6f) <0.01) {
+         if(g_cross_scale[5] > 1.55f) {
           g_cross_scale[5] = 1.0f; // 防止溢出
           g_cross_scale[11] = 1.0f;
         }

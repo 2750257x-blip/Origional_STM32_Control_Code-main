@@ -35,15 +35,16 @@ extern const float cross_frames[CROSS_FRAME_COUNT][CROSS_JOINT_COUNT];
  * 那是另一套算法，需要的话再加。
  */
 
-extern float time_sca;
+/* 按键调的时间倍数，1~5 整数（按键每按一次 +1，到 5 后绕回 1）。 */
+extern uint8_t time_sca;
 
 extern volatile float g_cross_scale[CROSS_JOINT_COUNT];
 
 /*
  * 阻塞式回放整条轨迹。
  *
- *   time_scale : 时间倍数。1.0 = 原始速度（20ms 一帧，一条 760ms）；
- *                2.0 = 慢一倍（1520ms）；0.5 = 快一倍（380ms）。
+ *   time_scale : 时间倍数，整数，>= 1。1 = 原始速度（20ms 一帧，一条 760ms）；
+ *                2 = 慢一倍（1520ms）；5 = 慢五倍（3800ms）。
  *   loops      : 重复遍数，必须 >= 1。
  *
  * 输出节拍固定 20ms 不变（和 Nano 下发指令的速率一致），倍数改变的是
@@ -55,8 +56,8 @@ extern volatile float g_cross_scale[CROSS_JOINT_COUNT];
  * 否则两边会同时抢电机；而且回放结束后主循环一恢复，Jetson 看门狗可能
  * 因为指令过期而触发软复位。
  *
- * 例：Cross_Play(1.0f, 1U);   // 原始速度走一遍
+ * 例：Cross_Play(1U, 1U);   // 原始速度走一遍
  */
-void Cross_Play(float time_scale, uint32_t loops);
+void Cross_Play(uint8_t time_scale, uint32_t loops);
 
 #endif
