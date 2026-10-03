@@ -94,5 +94,6 @@ void motor_enable();
 void motor_control(uint8_t *control_buf);
 void motor_limitcontrol(uint8_t *control_buf);
 void Motor_limitCtrl_float( FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id, float pos, float vel, float kp, float kd);
+void Motor_limitCtrl_float_Torque( FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id, float torque, float pos, float vel, float kp, float kd);
 void motor_limitcontrol_float(float *control_buf_float);
 #endif /* __MOTOR_EL05_H */

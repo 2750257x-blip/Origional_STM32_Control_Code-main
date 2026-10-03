@@ -44,6 +44,29 @@ static uint32_t lean_last_ms;
 volatile float g_bias_hip_roll   = -0.02f;   /* 髋 roll：左 joint 1，右 joint 7 */
 volatile float g_bias_ankle_roll = -0.02f;   /* 踝 roll：左 joint 5，右 joint 11 */
 
+/* ---- 前馈力矩倍数（每个关节独立）----
+ * 每个电机额外下发一份前馈力矩： torque_ff = (目标角度 - 当前角度) × 该关节倍数，
+ * 单位 N·m/rad。
+ *   目标角度 = Nano 数据经过符号翻转 + 前倾 + roll 偏置之后的电机坐标系角度
+ *              （也就是直接发给电机的那个 target）；
+ *   当前角度 = 电机上一刻上报的原始位置 MotorIMU_Packet_float[i*2]，
+ *              不做任何反向处理（不翻转、不减偏置）。
+ * 两者本来就在同一个电机坐标系里，所以相减是有意义的；稳态时 target 和
+ * 反馈一致，torque_ff 自然趋近 0。
+ * 下标和协议/Nano 关节顺序一致（= g_debug_motor_target 的下标）。
+ * 下标 → 关节 → CAN 总线 → 电机 ID：
+ *   0..5  = 左腿 hip_pitch/hip_roll/hip_yaw/knee_pitch/ankle_pitch/ankle_roll
+ *           走 hfdcan2，电机 ID 0x11,0x12,0x13,0x14,0x15,0x16
+ *   6..11 = 右腿 hip_pitch/hip_roll/hip_yaw/knee_pitch/ankle_pitch/ankle_roll
+ *           走 hfdcan1，电机 ID 0x01,0x02,0x03,0x04,0x05,0x06
+ * 全 0 = 不加（默认），改完下一帧生效。
+ * 注意别调太大：它相当于在 kp 之外又叠了一层 P 控制，太大容易自激抖动。
+ * 协议侧会自动把结果限到 ±6 N·m。 */
+volatile float g_ff_torque_gain[PROTOCOL_NUM_JOINTS] = {
+    5.0f, 5.0f, 5.0f, 0.0f, 0.0f, 0.0f,
+    5.0f, 5.0f, 5.0f, 0.0f, 0.0f, 0.0f
+};
+
 /* 冻结快照：前倾指令生效前抓的那一帧，冻结期间原样回放给 Nano */
 static float frozen_joint_position[PROTOCOL_NUM_JOINTS];
 static float frozen_joint_velocity[PROTOCOL_NUM_JOINTS];
@@ -178,33 +201,43 @@ static void apply_position_targets(const RobotCommandPayload *command)
 
     (void)lean_offset_step();
 
+    /* 左腿：协议下标 0~5，走 hfdcan2，电机 ID 0x11~0x16 */
     for (index = 0U; index < 6U; ++index) {
         float target = motor_direction_target(index, command->joint_target[index]);
         //  if(index == 0U) {
         //     target = target - 0.08f;
         // }
+        /* 前馈力矩：(目标 - 原始反馈) × 该关节倍数，两者都是电机坐标系 */
+        float torque_ff =
+            (target - MotorIMU_Packet_float[index * 2U]) * g_ff_torque_gain[index];
         g_debug_motor_target[index] = target;
-        Motor_limitCtrl_float(
+        Motor_limitCtrl_float_Torque(
             &hfdcan2,
             left_motor_id[index],
+            torque_ff,
             target,
-            0.0f,         
+            0.0f,
             base_kp[index] * kp_add * kp_scale,
             base_kd[index] * kd_add * kd_scale);
     }
 
+    /* 右腿：协议下标 6~11，走 hfdcan1，电机 ID 0x01~0x06 */
     for (index = 0U; index < 6U; ++index) {
         uint8_t protocol_index = (uint8_t)(index + 6U);
         float target = motor_direction_target(
             protocol_index,
             command->joint_target[protocol_index]);
+        float torque_ff =
+            (target - MotorIMU_Packet_float[protocol_index * 2U])
+            * g_ff_torque_gain[protocol_index];
         // if(index == 0U) {
         //     target = target +  0.08f;
-        // }    
+        // }       
         g_debug_motor_target[protocol_index] = target;
-        Motor_limitCtrl_float(
+        Motor_limitCtrl_float_Torque(
             &hfdcan1,
             right_motor_id[index],
+            torque_ff,
             target,
             0.0f,
             base_kp[index] * kp_add * kp_scale,

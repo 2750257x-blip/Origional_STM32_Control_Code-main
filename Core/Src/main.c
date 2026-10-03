@@ -376,8 +376,8 @@ void Robot_State_Machine(void)
       // 状态0：日常电机+IMU+USB双向通信
       case ROBOT_STATE_IDLE:
       {
-        Servo_SetAngle(&htim1, TIM_CHANNEL_1, (uint8_t)(180-(-MotorIMU_Packet_float[12]/3+30)));
-        Servo_SetAngle(&htim1, TIM_CHANNEL_2, (uint8_t)(MotorIMU_Packet_float[0]/3+30));
+        //Servo_SetAngle(&htim1, TIM_CHANNEL_1, (uint8_t)(180-(-MotorIMU_Packet_float[12]/3+30)));
+        //Servo_SetAngle(&htim1, TIM_CHANNEL_2, (uint8_t)(MotorIMU_Packet_float[0]/3+30));
         break;
       }
       // 状态1：举右手
@@ -626,7 +626,7 @@ void ROBOT_RHAND(void)
     case 0:                                   /* 举右手，保持 3.2 s */
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : RHAND");
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 0);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
       Action_Step_Begin();
       action_step = 1U;
       break;
@@ -634,7 +634,7 @@ void ROBOT_RHAND(void)
     case 1:
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
@@ -649,7 +649,7 @@ void ROBOT_LHAND(void)
     case 0:                                   /* 举左手，保持 3.2 s */
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : LHAND");
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 180);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       Action_Step_Begin();
       action_step = 1U;
       break;
@@ -657,7 +657,7 @@ void ROBOT_LHAND(void)
     case 1:
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;

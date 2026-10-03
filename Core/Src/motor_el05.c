@@ -171,8 +171,9 @@ void Motor_limitCtrl( FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id,  float kp, 
 }
 
   
-  void Motor_limitCtrl_float( FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id, float pos, float vel, float kp, float kd)
- {
+// 运控模式 + 前馈力矩。torque 单位 N·m，float_to_uint 会自动限到 T_MIN..T_MAX（±6）。
+void Motor_limitCtrl_float_Torque( FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id, float torque, float pos, float vel, float kp, float kd)
+{
   // 位置限位保护
   float safe_min, safe_max;
   get_safe_limit(motor_id, &safe_min, &safe_max);
@@ -185,7 +186,7 @@ void Motor_limitCtrl( FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id,  float kp, 
   uint16_t u_vel = float_to_uint(vel, V_MIN, V_MAX, 16);
   uint16_t u_kp  = float_to_uint(kp, KP_MIN, KP_MAX, 16);
   uint16_t u_kd  = float_to_uint(kd, KD_MIN, KD_MAX, 16);
-  uint16_t u_tor = float_to_uint(0, T_MIN, T_MAX, 16);
+  uint16_t u_tor = float_to_uint(torque, T_MIN, T_MAX, 16);
   uint32_t can_id = EL05_Combine_CANID_Ctrl(CMD_CTRL, u_tor, motor_id);
   data[0] = (u_pos >> 8) & 0xFF;
   data[1] = u_pos & 0xFF;
@@ -197,6 +198,11 @@ void Motor_limitCtrl( FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id,  float kp, 
   data[7] = u_kd & 0xFF;
   // 发送控制帧
   FDCAN_Send_ExtFrame(hfdcan, can_id, data, 8);
+}
+
+void Motor_limitCtrl_float( FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id, float pos, float vel, float kp, float kd)
+{
+  Motor_limitCtrl_float_Torque(hfdcan, motor_id, 0.0f, pos, vel, kp, kd);
 }
 
 // 解析电机反馈帧（通信类型2，手册4.1）
