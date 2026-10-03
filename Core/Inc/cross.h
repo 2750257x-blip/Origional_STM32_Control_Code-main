@@ -25,6 +25,21 @@
 extern const float cross_frames[CROSS_FRAME_COUNT][CROSS_JOINT_COUNT];
 
 /*
+ * 每个关节的角度倍率（12 个，顺序和 cross_frames 一致）。
+ * 插值出来的模型角度先乘这个再交给电机，全 1.0 = 不改。
+ * 可以在 ST-Link Live Expressions 里逐个关节调。
+ *
+ * 注意是"绝对角度 × 倍数"（绕模型零位缩放），不是"摆幅 × 倍数"：
+ * 把某个关节设成 0 是把它拉回模型零位，不是"这个关节不动"。
+ * 想改摆幅、同时保持它在站立姿态附近，得用"站立 + (轨迹-站立)×倍数"，
+ * 那是另一套算法，需要的话再加。
+ */
+
+extern float time_sca;
+
+extern volatile float g_cross_scale[CROSS_JOINT_COUNT];
+
+/*
  * 阻塞式回放整条轨迹。
  *
  *   time_scale : 时间倍数。1.0 = 原始速度（20ms 一帧，一条 760ms）；

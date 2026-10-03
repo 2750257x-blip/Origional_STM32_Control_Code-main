@@ -41,6 +41,7 @@
 #include "jetson_usb_cdc.h"
 #include "QRCode_State.h"
 #include "lcd_spi_154.h"
+#include "cross.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -277,7 +278,7 @@ int main(void)
   HAL_Delay(500);
   while (1)
   {
-    //BUTTON_CHANGE(); 
+    BUTTON_CHANGE(); 
     /* 通信和腿部闭环与当前动作无关，每轮都先服务一次 */
     ROBOT_Comms_Service();
     Robot_State_Machine();
@@ -857,120 +858,46 @@ void ROBOT_TEST_INIT(void)
 
 void BUTTON_CHANGE(void)
 {
-  while(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET || HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
-    HAL_TIM_Base_Stop_IT(&htim2);
-    __HAL_TIM_SET_COUNTER(&htim2, 0);
-    __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
-    
-     if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET) {
-        if(button_pressed == 6) {
-          button_pressed = 0; // 防止溢出
-        }
-        else {
-          button_pressed ++;
-        }
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET) {
+      Cross_Play(time_sca, 1U);
+      HAL_Delay(500);
+      Action_Goto(0.20f, 0.0f, 0.0f, -0.30f, -0.15f, 0.0f, -0.20f, 0.0f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
       }
-      if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
-        if(button_pressed == 0) {
-          button_pressed = 6; // 防止溢出
-        }
-        else {
-          button_pressed --;
-        }
-      }
-      if(button_pressed == 0) {  // 按键0：正常模式
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : IDLE");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
-      }
-      else if(button_pressed == 1) {  // 按键1：设零位
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : RESET");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
-      }
-      else if(button_pressed == 2) {  // 按键2：测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
-      }
-      else if(button_pressed == 3) { //动作测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_ACTION");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
-      }
-      else if(button_pressed == 4) { // IMU测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_IMU");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-      }
-      else if(button_pressed == 5) { // UART测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_UART");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-      }
-      else if(button_pressed == 6) { // INIT测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_INIT");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-      }
-      HAL_Delay(1000);
-    }
 
-  if(button_pressed != button_pressed_last) {
-    button_pressed_last = button_pressed;
-    Close_All_Old_Func();
-    switch(button_pressed)
-    {
-      case 0:
-        robot_state = ROBOT_STATE_IDLE;
-        break;
-      case 1:
-        robot_state = ROBOT_STATE_RESET;
-        break;
-      case 2:
-        robot_state = ROBOT_STATE_BOTHH;
-        //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-        break;
-      case 3:
-        robot_state = ROBOT_STATE_CROSS;
-        break;
-      case 4:
-        robot_state = ROBOT_STATE_TEST_IMU; 
-        break;
-      case 5:
-        robot_state = ROBOT_STATE_TEST_UART;
-        HAL_UART_Receive_IT(&huart1, &uart_rx_buf1[uart_count1], 1);
-        HAL_UART_Receive_IT(&huart2, &uart_rx_buf2[uart_count2], 1);
-        break;
-      case 6:
-        robot_state = ROBOT_STATE_TEST_INIT;
-        break;
-      default:
-        robot_state = ROBOT_STATE_IDLE;
-        break;
-    }
-  }
+
+      if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
+      time_sca++;
+      if((time_sca -5.0f) <0.1) {
+          time_sca = 1.0f; // 防止溢出
+        }
+      }
+
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
+        g_cross_scale[0] += 0.1f;
+        g_cross_scale[6] += 0.1f;
+        if((g_cross_scale[0] -1.6f) <0.01) {
+          g_cross_scale[0] = 1.0f; // 防止溢出
+          g_cross_scale[6] = 1.0f;
+        }
+      }
+
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1) == GPIO_PIN_SET){
+        g_cross_scale[3] += 0.1f;
+        g_cross_scale[9] += 0.1f;
+         if((g_cross_scale[3] -1.6f) <0.01) {
+          g_cross_scale[3] = 1.0f; // 防止溢出
+          g_cross_scale[9] = 1.0f;
+        }
+      }
+
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
+        g_cross_scale[5] += 0.1f;
+        g_cross_scale[11] += 0.1f;
+         if((g_cross_scale[5] -1.6f) <0.01) {
+          g_cross_scale[5] = 1.0f; // 防止溢出
+          g_cross_scale[11] = 1.0f;
+        }
+      }
 }
 
 void Close_All_Old_Func(void)

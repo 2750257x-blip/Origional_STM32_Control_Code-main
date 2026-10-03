@@ -7,6 +7,13 @@
 
 #define CROSS_OUTPUT_PERIOD_MS  20U         // 20 ms 一帧，和 Nano 下发指令的速率一致
 
+/* 每个关节的角度倍率：插值出来的模型角度先乘这个再交给电机。
+ * 全 1.0 = 不改。想调哪个关节就改哪个，Live Expressions 里直接写。 */
+volatile float g_cross_scale[CROSS_JOINT_COUNT] = {
+    1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
+};
+
 /* 38 帧 × 12 关节，模型坐标系（= Nano 下发格式），关节顺序见 cross.h */
 const float cross_frames[CROSS_FRAME_COUNT][CROSS_JOINT_COUNT] = {
     { 0.10887760668992996, 0.005780983250588179, -0.004220681264996529, 0.2537775933742523, -0.17876192927360535, -0.006344781257212162, -0.11820048838853836, -0.004860004410147667, 0.00919574685394764, -0.27719104290008545, 0.1963263899087906, 0.014380214735865593 },   /*  0 */
@@ -49,6 +56,8 @@ const float cross_frames[CROSS_FRAME_COUNT][CROSS_JOINT_COUNT] = {
     { -0.13326720893383026, 0.14510202407836914, -0.3599322438240051, 0.08082711696624756, -0.13815218210220337, 0.13322126865386963, 0.09061736613512039, -0.08285555988550186, 0.13742244243621826, -0.06295260787010193, 0.028985606506466866, -0.08620160818099976 },   /* 37 */
 };
 
+float time_sca = 1.0f;
+
 /* 按绝对时间片等待下一个节拍。用累加的绝对时刻而不是 HAL_Delay，
  * 避免每帧多出来的执行时间累积成漂移。 */
 static void cross_wait_next_tick(uint32_t *next_ms)
@@ -90,11 +99,13 @@ void Cross_Play(float time_scale, uint32_t loops)
             float    frac      = frame_pos - (float)index;
             uint8_t  joint;
 
-            /* 线性插值。time_scale = 1 时 frac 恒为 0，等于原样播放。 */
+            /* 线性插值。time_scale = 1 时 frac 恒为 0，等于原样播放。
+             * 再乘上每个关节自己的倍率。 */
             for (joint = 0U; joint < CROSS_JOINT_COUNT; ++joint) {
                 float a = cross_frames[index][joint];
                 float b = cross_frames[(index + 1U) % CROSS_FRAME_COUNT][joint];
-                target[joint] = a + ((b - a) * frac);
+                float value = a + ((b - a) * frac);
+                target[joint] = value * g_cross_scale[joint];
             }
 
             /* 和 Nano 指令走同一条路径：符号翻转 + 前倾 + roll 偏置 + 限位 */
