@@ -213,6 +213,21 @@ static void apply_position_targets(const RobotCommandPayload *command)
     system_control_cycle ++;
 }
 
+/* 本地轨迹（cross.c）复用的入口。不碰上面那条 Nano 路径，只是伪造一个
+ * payload 交给它，所以处理链路和 Nano 下发指令时完全是同一个函数：
+ * 符号翻转 + 前倾 + roll 偏置 + 限位，反馈参考 target_position 也一起更新。
+ * joint_target 必须是模型坐标系（前 6 个左腿、后 6 个右腿），未取反。 */
+void JetsonRobotBridge_ApplyModelTargets(const float joint_target[PROTOCOL_NUM_JOINTS])
+{
+    RobotCommandPayload command;
+
+    memset(&command, 0, sizeof(command));
+    memcpy(command.joint_target, joint_target, sizeof(command.joint_target));
+
+    apply_position_targets(&command);
+    memcpy(target_position, joint_target, sizeof(target_position));
+}
+
 void JetsonRobotBridge_CaptureFrozenState(void)
 {
     uint8_t index;

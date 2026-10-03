@@ -19,6 +19,11 @@ void JetsonRobotBridge_OnUsbReceive(uint8_t *data, uint32_t length);
 void JetsonRobotBridge_SetLean(uint8_t active);
 void JetsonRobotBridge_CaptureFrozenState(void);
 
+/* 把一组模型坐标系的关节目标直接发给电机，走的是和 Nano 指令完全相同的
+ * 处理路径（符号翻转 + 前倾 + roll 偏置 + 限位），供本地轨迹回放使用。
+ * joint_target[12]：前 6 个左腿、后 6 个右腿，未取反（= cross.h 的帧格式）。 */
+void JetsonRobotBridge_ApplyModelTargets(const float joint_target[12]);
+
 /* 前倾斜坡走完了没有。
  *
  * LEAN/RESTORE 故意不占 robot_state（要跨着后面的手臂动作持续存在），于是

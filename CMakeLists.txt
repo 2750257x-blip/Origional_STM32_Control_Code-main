@@ -57,6 +57,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/jetson_protocol.c
     Core/Src/jetson_usb_cdc.c
     Core/Src/jetson_robot_bridge.c
+    Core/Src/cross.c
 )
 
 # Add include paths
