@@ -24,11 +24,25 @@ static uint32_t last_applied_command_count;
 
 /* ---- 前倾 20° + 反馈冻结 ---- */
 #define LEAN_ANGLE_RAD   -0.3491f    /* 20° = 0.3491 rad，模型坐标系，叠加在站立姿态的髋 pitch 上 */
-#define LEAN_RAMP_RATE   1.0f       /* rad/s：20° 约 580 ms 爬到位，避免站立时阶跃冲击 */
+#define LEAN_RAMP_RATE   1.0f       /* rad/s：20° 约 290 ms 爬到位，避免站立时阶跃冲击 */
 
 static float    lean_target;        /* 0 或 LEAN_ANGLE_RAD */
 static float    lean_applied;       /* 带斜率地跟随 lean_target */
 static uint32_t lean_last_ms;
+
+/* ---- roll 关节偏置（补偿装配误差）----
+ * 只在电机侧生效，上位机不知道：Nano 照常下发无偏置的目标，
+ * motor_direction_target() 在发给电机之前加上去，
+ * remove_roll_bias() 在反馈读数那里再减掉，一来一回正好抵消，
+ * 所以 Nano 看到的仍然是自己下发的模型角度（只减一次，不会叠两次）。
+ * 注意两者都作用在"符号翻转之后"的电机坐标系，roll 关节不在翻转名单里
+ * （sign 恒为 +1），这才保证加减是在同一个坐标系里。若哪天把 roll 关节
+ * 加进翻转名单（{0,4,6,10}），这里会变成同向叠加，必须一起改。
+ * 左右腿是 mirror 装配，所以偏置反号：左腿 +bias，右腿 −bias。
+ * 单位 rad（0.0175 rad ≈ 1°），可正可负，0 表示不加。
+ * 直接改这两个量（ST-Link Live Expressions / 调试器），下一帧生效。 */
+volatile float g_bias_hip_roll   = -0.02f;   /* 髋 roll：左 joint 1，右 joint 7 */
+volatile float g_bias_ankle_roll = -0.02f;   /* 踝 roll：左 joint 5，右 joint 11 */
 
 /* 冻结快照：前倾指令生效前抓的那一帧，冻结期间原样回放给 Nano */
 static float frozen_joint_position[PROTOCOL_NUM_JOINTS];
@@ -99,7 +113,33 @@ static float motor_direction_target(uint8_t joint_index, float model_target)
     } else if (joint_index == 6U) {
         target -= lean_applied;
     }
+    /* roll 偏置：左右 mirror，反号 */
+    if (joint_index == 1U) {            /* 左髋 roll */
+        target += g_bias_hip_roll;
+    } else if (joint_index == 7U) {     /* 右髋 roll */
+        target -= g_bias_hip_roll;
+    } else if (joint_index == 5U) {     /* 左踝 roll */
+        target += g_bias_ankle_roll;
+    } else if (joint_index == 11U) {    /* 右踝 roll */
+        target -= g_bias_ankle_roll;
+    }
     return target;
+}
+
+/* motor_direction_target() 里 roll 偏置的逆变换：电机读回来的角度带着那个偏置，
+ * 减掉它，上位机看到的才是自己下发的模型角度。速度不受影响（偏置是常数）。 */
+static float remove_roll_bias(uint8_t joint_index, float value)
+{
+    if (joint_index == 1U) {            /* 左髋 roll */
+        return value - g_bias_hip_roll;
+    } else if (joint_index == 7U) {     /* 右髋 roll */
+        return value + g_bias_hip_roll;
+    } else if (joint_index == 5U) {     /* 左踝 roll */
+        return value - g_bias_ankle_roll;
+    } else if (joint_index == 11U) {    /* 右踝 roll */
+        return value + g_bias_ankle_roll;
+    }
+    return value;
 }
 
 static bool command_targets_are_valid(const RobotCommandPayload *command)
@@ -181,7 +221,8 @@ void JetsonRobotBridge_CaptureFrozenState(void)
     for (index = 0U; index < PROTOCOL_NUM_JOINTS; ++index) {
         float sign = ((index == 0U) || (index == 4U) ||
                       (index == 6U) || (index == 10U)) ? -1.0f : 1.0f;
-        frozen_joint_position[index] = sign * MotorIMU_Packet_float[index * 2U];
+        frozen_joint_position[index] =
+            remove_roll_bias(index, sign * MotorIMU_Packet_float[index * 2U]);
         frozen_joint_velocity[index] = sign * MotorIMU_Packet_float[index * 2U + 1U];
     }
     memcpy(frozen_imu, &MotorIMU_Packet_float[24], sizeof(frozen_imu));
@@ -318,8 +359,8 @@ uint8_t JetsonRobotBridge_SendState(void)
         float sign = ((index == 0U) || (index == 4U) ||
                       (index == 6U) || (index == 10U)) ? -1.0f : 1.0f;
 
-        /* 原始反馈（已转模型坐标系） */
-        float raw_pos = sign * feedback[index * 2U];
+        /* 原始反馈（已转模型坐标系，并减掉 roll 偏置还原成上位机坐标系） */
+        float raw_pos = remove_roll_bias(index, sign * feedback[index * 2U]);
         float raw_vel = sign * feedback[index * 2U + 1U];
 
         /* 1. 速度外推 —— 补偿1帧滞后：p_pred = p_raw + v * Δt */
