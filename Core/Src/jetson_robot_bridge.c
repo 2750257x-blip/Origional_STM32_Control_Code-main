@@ -11,8 +11,13 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define JETSON_COMMAND_WATCHDOG_MS 100U
 #define IMU_FRESHNESS_MS           50U
+
+/* Nano 指令看门狗：超过这么久没收到 CRC 合法的上位机帧，且当前处于 Nano 控制中，
+ * 就软复位回初始位姿（见 reboot_home）。单位 ms，设 0 会立刻超时——别设 0。
+ * 关节指令和动作请求帧都算"在线"（见 jetson_protocol.c 的接收分支）。
+ * ST-Link 在线改，下一轮主循环生效。 */
+volatile uint32_t g_command_watchdog_ms = 100U;
 #define MAX_GAIN_SCALE             2.0f
 
 static uint32_t last_applied_command_count;
@@ -333,7 +338,7 @@ void JetsonRobotBridge_ProcessCommand(void)
         command_count_before = g_debug_command_count;
         fresh = Protocol_GetFreshCommand(
             now_ms,
-            JETSON_COMMAND_WATCHDOG_MS,
+            g_command_watchdog_ms,
             &command);
         command_count_after = g_debug_command_count;
     } while (command_count_before != command_count_after);
@@ -457,7 +462,7 @@ uint8_t JetsonRobotBridge_SendState(void)
     if (ready_flags == 0x0FFFU) {
         state.status_flags |= STATE_ENCODERS_VALID;
     }
-    if (Protocol_CommandIsFresh(HAL_GetTick(), JETSON_COMMAND_WATCHDOG_MS)) {
+    if (Protocol_CommandIsFresh(HAL_GetTick(), g_command_watchdog_ms)) {
         state.status_flags |= STATE_COMMAND_FRESH;
     }
 

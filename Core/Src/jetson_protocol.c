@@ -83,6 +83,10 @@ static void process_complete_frame(uint32_t now_ms)
         ++g_debug_command_count;
     } else if ((header.message_type == PROTOCOL_MSG_ACTION_REQUEST) &&
                (header.payload_length == sizeof(ActionRequestPayload))) {
+        /* 动作请求也算"上位机在线"：前倾/动作期间 Nano 可能不发关节指令，
+         * 若不刷新，100ms 看门狗会误判掉线并软复位。刷新的是在线时间戳，
+         * 关节目标仍只由 COMMAND 帧更新。 */
+        latest_command_ms = now_ms;
         if (!action_available) {
             memcpy(&pending_action, &rx_frame[HEADER_SIZE], sizeof(pending_action));
             action_available = true;

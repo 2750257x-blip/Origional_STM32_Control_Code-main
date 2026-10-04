@@ -35,6 +35,9 @@ void JetsonRobotBridge_ApplyModelTargets(const float joint_target[12]);
  * 所以对 1/2/5/6 那条路径没有影响。 */
 uint8_t JetsonRobotBridge_LeanSettled(void);
 
+/* Nano 指令看门狗阈值 (ms)，可在 ST-Link 在线改。见 jetson_robot_bridge.c。 */
+extern volatile uint32_t g_command_watchdog_ms;
+
 /* Values after URDF-to-motor direction conversion, visible over ST-Link. */
 extern volatile float g_debug_motor_target[12];
 extern volatile uint8_t g_debug_jetson_control_active;

@@ -332,13 +332,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   imu_set_zero();                         // 清零四元数，使复位后姿态归零
   HAL_Delay(500);
+  LCD_State_Machine();
   while (1)
   {
     BUTTON_CHANGE(); 
     /* 通信和腿部闭环与当前动作无关，每轮都先服务一次 */
     ROBOT_Comms_Service();
     Robot_State_Machine();
-    LCD_State_Machine();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -532,7 +532,7 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
       request->action_id == ACTION_ID_RESTORE) {
     if (request->event_id == 0U ||
         g_debug_jetson_control_active == 0U ||
-        !Protocol_CommandIsFresh(HAL_GetTick(), 100U)) {
+        !Protocol_CommandIsFresh(HAL_GetTick(), g_command_watchdog_ms)) {
       Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_BUSY);
       return;
     }
@@ -571,7 +571,7 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
     return;
   }
   if (robot_state != ROBOT_STATE_IDLE || g_debug_jetson_control_active == 0U ||
-      !Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
+      !Protocol_CommandIsFresh(HAL_GetTick(), g_command_watchdog_ms) ||
       active_action_status == ACTION_STATUS_ACCEPTED) {                                  // 如果当前状态机不在空闲状态，或者上位机控制未激活，或者上位机命令不新鲜，或者当前动作还在执行中，返回忙碌状态
     Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_BUSY);
     return;
@@ -593,7 +593,7 @@ void ROBOT_Comms_Service(void)
 
   // 处理通过USB CDC收到的动作请求
   if (active_action_status == ACTION_STATUS_ACCEPTED) {
-    if (!Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
+    if (!Protocol_CommandIsFresh(HAL_GetTick(), g_command_watchdog_ms) ||
         g_debug_jetson_control_active == 0U) {
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
@@ -916,6 +916,7 @@ void BUTTON_CHANGE(void)
       if(time_sca == 5U) {
           time_sca = 1U; // 防止溢出
         }
+      HAL_Delay(500);
       }
 
       /* PC0：切换屏幕。诊断屏 <-> 力矩屏。取按下沿，按一下只翻一次
@@ -924,6 +925,8 @@ void BUTTON_CHANGE(void)
         if(pc0_last == 0U) {
           lcd_show_torque ^= 1U;
           lcd_screen_dirty = 1U;
+          LCD_State_Machine();
+          HAL_Delay(200);
         }
         pc0_last = 1U;
       } else {
@@ -932,15 +935,18 @@ void BUTTON_CHANGE(void)
 
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1) == GPIO_PIN_SET){
           motor_enable();
+          LCD_State_Machine();
+          HAL_Delay(500);
       }
 
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
-        g_cross_scale[5] += 0.1f;
-        g_cross_scale[11] += 0.1f;
-         if(g_cross_scale[5] > 1.55f) {
-          g_cross_scale[5] = 1.0f; // 防止溢出
-          g_cross_scale[11] = 1.0f;
+        g_cross_scale[1] += 0.1f;
+        g_cross_scale[7] += 0.1f;
+         if(g_cross_scale[1] > 1.55f) {
+          g_cross_scale[1] = 1.0f; // 防止溢出
+          g_cross_scale[7] = 1.0f;
         }
+        HAL_Delay(500);
       }
 }
 
