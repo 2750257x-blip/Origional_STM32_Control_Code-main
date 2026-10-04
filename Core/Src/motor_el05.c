@@ -5,7 +5,8 @@ volatile uint16_t motor_status_ready = 0;
 volatile uint16_t motor_status_fault = 0;
 volatile uint16_t motor_status_mode = 0;
 volatile uint16_t motor_fault_test = 0;
-uint8_t motor_status_buf[48] = {0}; 
+uint8_t motor_status_buf[48] = {0};
+volatile float motor_torque_float[12] = {0};   // 12个关节反馈力矩（N·m），索引见 motor_el05.h
 
 // 浮点数转无符号整数（手册4.4，16位）
 static uint16_t float_to_uint(float x, float x_min, float x_max, uint8_t bits)

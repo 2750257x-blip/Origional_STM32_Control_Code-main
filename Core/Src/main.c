@@ -119,6 +119,12 @@ static uint32_t active_event_id = 0U;                  //  当前正在执行的
 static uint8_t active_action_id = 0U;                  //  当前正在执行的动作 ID，用于发送给上位机
 static uint8_t active_action_status = 0U;              //  当前正在执行的动作状态，用于发送给上位机
 
+/* LCD 两个屏幕：0 = 原来的诊断屏，1 = 力矩屏。PC0 按键切换。
+ * 两屏的行数、字体都不一样，切换时整屏清掉，再按新屏画一遍静态文字。 */
+static uint8_t lcd_show_torque  = 0U;
+static uint8_t lcd_screen_dirty = 0U;   /* 1 = 需要清屏并按当前屏重画静态文字 */
+static uint8_t pc0_last         = 0U;   /* PC0 上次的电平，用来取"按下沿" */
+
 uint8_t uart_rx_buf1[120] = {0};
 uint8_t uart_rx_data1[120] = {0};
 volatile uint8_t uart_count1 = 0;
@@ -163,6 +169,72 @@ void LCD_State_Machine(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+/* ---- 力矩屏的排版常量（单位像素，屏 240×240）---- */
+#define LCD_TORQUE_ROW_Y0    2U     /* 第 0 行的 y */
+#define LCD_TORQUE_ROW_DY    19U    /* 行距：12 行占 2 + 11*19 + 16 = 227 px */
+#define LCD_TORQUE_LABEL_X   8U
+#define LCD_TORQUE_VALUE_X   40U
+
+/* 顶行 Mode 文字。动作函数只在状态切换时才写这一行，切屏回来要重画，
+ * 所以这里按当前 robot_state 现算，免得显示成过期的 IDLE。
+ * 力矩屏时不画（那屏第 0 行是力矩数据）。 */
+static void LCD_DrawModeLine(void)
+{
+  char *mode_text = "Mode : IDLE";
+
+  if (lcd_show_torque != 0U) {
+    return;
+  }
+
+  switch (robot_state) {
+    case ROBOT_STATE_RHAND: mode_text = "Mode : RHAND"; break;
+    case ROBOT_STATE_LHAND: mode_text = "Mode : LHAND"; break;
+    case ROBOT_STATE_HEAD:  mode_text = "Mode : HEAD";  break;
+    case ROBOT_STATE_BOTHH: mode_text = "Mode : BOTHH"; break;
+    case ROBOT_STATE_CROSS: mode_text = "Mode : CROSS"; break;
+    default: break;
+  }
+
+  LCD_ClearRect(10, 10, 240, 24);
+  LCD_DisplayText(10, 10, mode_text);
+}
+
+/* 按当前屏幕画静态文字（开机时调用，切屏清屏后也调用）。
+ * 两种屏幕字体不同，字体也在这里一起切。 */
+static void LCD_DrawStatics(void)
+{
+  uint8_t i;
+
+  if (lcd_show_torque != 0U) {
+    /* 12 行：上 6 行 = fdcan2（左腿，ID 0x11~0x16），下 6 行 = fdcan1
+     * （右腿，ID 0x01~0x06）。行号就是电机序号 1~6。 */
+    static char *const torque_label[12] = {
+        "L1", "L2", "L3", "L4", "L5", "L6",
+        "R1", "R2", "R3", "R4", "R5", "R6"
+    };
+
+    LCD_SetAsciiFont(&ASCII_Font16);
+    for (i = 0U; i < 12U; ++i) {
+      LCD_DisplayString(LCD_TORQUE_LABEL_X,
+                        (uint16_t)(LCD_TORQUE_ROW_Y0 + i * LCD_TORQUE_ROW_DY),
+                        torque_label[i]);
+    }
+    return;
+  }
+
+  /* 原来的诊断屏：行距 24 px，正好是 ASCII_Font24 的高度 */
+  LCD_SetAsciiFont(&ASCII_Font24);
+  LCD_DrawModeLine();
+  LCD_DisplayText(10, 34, "motor_r: ");
+  LCD_DisplayText(10, 58, "motor_l: ");
+  LCD_DisplayText(10, 82, "motor_state: ");
+  LCD_DisplayText(10, 106, "motor_fault: ");
+  LCD_DisplayText(10, 130, "imu_ready: ");
+  LCD_DisplayText(10, 154, "cycle: ");
+  LCD_DisplayText(10, 178, "warning: ");
+  LCD_DisplayText(10, 202, "imu_n: ");
+}
 
 /* USER CODE END 0 */
 
@@ -243,23 +315,7 @@ int main(void)
   HAL_Delay(100);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim2);   // 动作节拍时基（10 ms）
-  LCD_DisplayText(10, 10, "Mode: IDLE");
-  LCD_DisplayText(10, 34, "motor_r: ");
-  LCD_DisplayNumber(118, 34, 0, 6);
-  LCD_DisplayText(10, 58, "motor_l: ");
-  LCD_DisplayNumber(118, 58, 0, 6);
-  LCD_DisplayText(10, 82, "motor_state: ");
-  LCD_DisplayHex(166, 82, 0, 4);
-  LCD_DisplayText(10, 106, "motor_fault: ");
-  LCD_DisplayHex(166, 106, 0, 4);
-  LCD_DisplayText(10, 130, "imu_ready: ");
-  LCD_DisplayHex(142, 130, 0, 2);
-  LCD_DisplayText(10, 154, "cycle: ");
-  LCD_DisplayNumber(94, 154, 0, 2);
-  LCD_DisplayText(10, 178, "warning: ");
-  LCD_DisplayNumber(118, 178, 0, 4);
-  LCD_DisplayText(10, 202, "imu_n: ");
-  LCD_DisplayNumber(94, 202, imu_data_count, 8);
+  LCD_DrawStatics();
 
   for(int i=0; i<12; i++)
   {
@@ -624,8 +680,7 @@ void ROBOT_RHAND(void)
   switch (action_step)
   {
     case 0:                                   /* 举右手，保持 3.2 s */
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(10, 10, "Mode : RHAND");
+      LCD_DrawModeLine();
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
       Action_Step_Begin();
       action_step = 1U;
@@ -635,8 +690,7 @@ void ROBOT_RHAND(void)
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(0, 10, "Mode : IDLE");
+      LCD_DrawModeLine();
       action_count_finished++;
       break;
   }
@@ -647,8 +701,7 @@ void ROBOT_LHAND(void)
   switch (action_step)
   {
     case 0:                                   /* 举左手，保持 3.2 s */
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(10, 10, "Mode : LHAND");
+      LCD_DrawModeLine();
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       Action_Step_Begin();
       action_step = 1U;
@@ -658,8 +711,7 @@ void ROBOT_LHAND(void)
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(0, 10, "Mode : IDLE");
+      LCD_DrawModeLine();
       action_count_finished++;
       break;
   }
@@ -670,8 +722,7 @@ void ROBOT_HEAD(void)
   switch (action_step)
   {
     case 0:                                   /* 摇头，来回 5 次后回中 */
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(10, 10, "Mode : HEAD");
+      LCD_DrawModeLine();
       Servo_SetAngle(&htim1, TIM_CHANNEL_3, 0);
       Action_Step_Begin();
       action_step = 1U;
@@ -715,8 +766,7 @@ void ROBOT_HEAD(void)
     case 6:
       if (!Action_Step_Elapsed(200U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(0, 10, "Mode : IDLE");
+      LCD_DrawModeLine();
       action_count_finished++;
       break;
   }
@@ -735,8 +785,7 @@ void ROBOT_BOTHH(void)
   switch (action_step)
   {
     case 0:                                   /* 举双手，保持 3.2 s */
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(10, 10, "Mode : BOTHH");
+      LCD_DrawModeLine();
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 0);
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 180);
       Action_Step_Begin();
@@ -748,8 +797,7 @@ void ROBOT_BOTHH(void)
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(0, 10, "Mode : IDLE");
+      LCD_DrawModeLine();
       action_count_finished++;
       break;
   }
@@ -757,14 +805,11 @@ void ROBOT_BOTHH(void)
 
 void ROBOT_CROSS(void)
 {
-  LCD_ClearRect(10, 10, 240, 24);
-  LCD_DisplayText(10, 10, "Mode : CROSS");
+  LCD_DrawModeLine();
   Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
   robot_state = ROBOT_STATE_IDLE;
-  LCD_ClearRect(10, 10, 240, 24);
-  LCD_DisplayText(0, 10, "Mode : IDLE");
+  LCD_DrawModeLine();
 }
-//sk-f14f125467984078979ed8ef4f748cc5
 void ROBOT_TEST_IMU(void)
 {
   if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
@@ -873,22 +918,20 @@ void BUTTON_CHANGE(void)
         }
       }
 
+      /* PC0：切换屏幕。诊断屏 <-> 力矩屏。取按下沿，按一下只翻一次
+       * （原来的写法按住不放会每轮主循环都翻一遍）。 */
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
-        g_cross_scale[0] += 0.1f;
-        g_cross_scale[6] += 0.1f;
-        if(g_cross_scale[0] > 1.55f) {
-          g_cross_scale[0] = 1.0f; // 防止溢出
-          g_cross_scale[6] = 1.0f;
+        if(pc0_last == 0U) {
+          lcd_show_torque ^= 1U;
+          lcd_screen_dirty = 1U;
         }
+        pc0_last = 1U;
+      } else {
+        pc0_last = 0U;
       }
 
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1) == GPIO_PIN_SET){
-        g_cross_scale[3] += 0.1f;
-        g_cross_scale[9] += 0.1f;
-         if(g_cross_scale[3] > 1.55f) {
-          g_cross_scale[3] = 1.0f; // 防止溢出
-          g_cross_scale[9] = 1.0f;
-        }
+          motor_enable();
       }
 
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
@@ -930,6 +973,25 @@ void Close_All_Old_Func(void)
 
 void LCD_State_Machine(void)
 {
+  uint8_t i;
+
+  /* 切屏后先整屏清掉，再按新屏重画一遍静态文字 */
+  if (lcd_screen_dirty != 0U) {
+    lcd_screen_dirty = 0U;
+    LCD_Clear();
+    LCD_DrawStatics();
+  }
+
+  if (lcd_show_torque != 0U) {
+    /* 力矩屏：12 行都是浮点数（N·m），顺序和 cross/协议关节一致 */
+    for (i = 0U; i < 12U; ++i) {
+      LCD_DisplayDecimals(LCD_TORQUE_VALUE_X,
+                          (uint16_t)(LCD_TORQUE_ROW_Y0 + i * LCD_TORQUE_ROW_DY),
+                          (double)motor_torque_float[i], 7U, 3U);
+    }
+    return;
+  }
+
   /* ready 是12位掩码：bit0~5 右腿(FDCAN1)，bit6~11 左腿(FDCAN2)，按位拆开显示，1=该电机已上报 */
   LCD_DisplayBinary(118, 34, motor_status_ready >>6, 6);          /* 右腿 bit5~bit0 */
   LCD_DisplayBinary(118, 58, motor_status_ready, 6);     /* 左腿 bit11~bit6 */

@@ -76,6 +76,12 @@ extern volatile uint16_t motor_status_mode;
 extern volatile uint16_t motor_fault_test;
 extern uint8_t motor_status_buf[48];
 
+// 12 个关节的反馈力矩（N·m），由 FDCAN 接收中断从状态帧 data[4-5] 解出来。
+// 索引和 MotorIMU_Packet_float / Nano 关节顺序一致：
+//   0~5  = 左腿（FDCAN2，电机 ID 0x11~0x16）
+//   6~11 = 右腿（FDCAN1，电机 ID 0x01~0x06）
+extern volatile float motor_torque_float[12];
+
 // 函数声明
 void EL05_Motor_Enable(FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id);      // 电机使能
 void EL05_Motor_Stop(FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id);        // 电机停止
