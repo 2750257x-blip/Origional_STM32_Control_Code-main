@@ -275,13 +275,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   imu_set_zero();                         // 清零四元数，使复位后姿态归零
   HAL_Delay(500);
+  LCD_State_Machine();
   while (1)
   {
-    //BUTTON_CHANGE(); 
+    BUTTON_CHANGE(); 
     /* 通信和腿部闭环与当前动作无关，每轮都先服务一次 */
     ROBOT_Comms_Service();
     Robot_State_Machine();
-    LCD_State_Machine();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -375,8 +375,8 @@ void Robot_State_Machine(void)
       // 状态0：日常电机+IMU+USB双向通信
       case ROBOT_STATE_IDLE:
       {
-        Servo_SetAngle(&htim1, TIM_CHANNEL_1, (uint8_t)(180-(-MotorIMU_Packet_float[12]/3+30)));
-        Servo_SetAngle(&htim1, TIM_CHANNEL_2, (uint8_t)(MotorIMU_Packet_float[0]/3+30));
+       // Servo_SetAngle(&htim1, TIM_CHANNEL_1, (uint8_t)(180-(-MotorIMU_Packet_float[12]/3+30)));
+       // Servo_SetAngle(&htim1, TIM_CHANNEL_2, (uint8_t)(MotorIMU_Packet_float[0]/3+30));
         break;
       }
       // 状态1：举右手
@@ -625,7 +625,7 @@ void ROBOT_RHAND(void)
     case 0:                                   /* 举右手，保持 3.2 s */
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : RHAND");
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 0);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
       Action_Step_Begin();
       action_step = 1U;
       break;
@@ -633,7 +633,7 @@ void ROBOT_RHAND(void)
     case 1:
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
@@ -648,7 +648,7 @@ void ROBOT_LHAND(void)
     case 0:                                   /* 举左手，保持 3.2 s */
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : LHAND");
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 180);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       Action_Step_Begin();
       action_step = 1U;
       break;
@@ -656,7 +656,7 @@ void ROBOT_LHAND(void)
     case 1:
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
@@ -736,8 +736,8 @@ void ROBOT_BOTHH(void)
     case 0:                                   /* 举双手，保持 3.2 s */
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : BOTHH");
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 0);
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 180);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       Action_Step_Begin();
       action_step = 1U;
       break;
@@ -745,8 +745,8 @@ void ROBOT_BOTHH(void)
     case 1:
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
@@ -763,7 +763,6 @@ void ROBOT_CROSS(void)
   LCD_ClearRect(10, 10, 240, 24);
   LCD_DisplayText(0, 10, "Mode : IDLE");
 }
-//sk-f14f125467984078979ed8ef4f748cc5
 void ROBOT_TEST_IMU(void)
 {
   if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
@@ -857,120 +856,27 @@ void ROBOT_TEST_INIT(void)
 
 void BUTTON_CHANGE(void)
 {
-  while(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET || HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
-    HAL_TIM_Base_Stop_IT(&htim2);
-    __HAL_TIM_SET_COUNTER(&htim2, 0);
-    __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
-    
-     if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET) {
-        if(button_pressed == 6) {
-          button_pressed = 0; // 防止溢出
-        }
-        else {
-          button_pressed ++;
-        }
+  if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET) {
+           HAL_Delay(200);
+           LCD_State_Machine();
       }
-      if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
-        if(button_pressed == 0) {
-          button_pressed = 6; // 防止溢出
-        }
-        else {
-          button_pressed --;
-        }
-      }
-      if(button_pressed == 0) {  // 按键0：正常模式
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : IDLE");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
-      }
-      else if(button_pressed == 1) {  // 按键1：设零位
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : RESET");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
-      }
-      else if(button_pressed == 2) {  // 按键2：测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
-      }
-      else if(button_pressed == 3) { //动作测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_ACTION");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
-      }
-      else if(button_pressed == 4) { // IMU测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_IMU");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-      }
-      else if(button_pressed == 5) { // UART测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_UART");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-      }
-      else if(button_pressed == 6) { // INIT测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_INIT");
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-      }
-      HAL_Delay(1000);
-    }
 
-  if(button_pressed != button_pressed_last) {
-    button_pressed_last = button_pressed;
-    Close_All_Old_Func();
-    switch(button_pressed)
-    {
-      case 0:
-        robot_state = ROBOT_STATE_IDLE;
-        break;
-      case 1:
-        robot_state = ROBOT_STATE_RESET;
-        break;
-      case 2:
-        robot_state = ROBOT_STATE_BOTHH;
-        //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-        break;
-      case 3:
-        robot_state = ROBOT_STATE_CROSS;
-        break;
-      case 4:
-        robot_state = ROBOT_STATE_TEST_IMU; 
-        break;
-      case 5:
-        robot_state = ROBOT_STATE_TEST_UART;
-        HAL_UART_Receive_IT(&huart1, &uart_rx_buf1[uart_count1], 1);
-        HAL_UART_Receive_IT(&huart2, &uart_rx_buf2[uart_count2], 1);
-        break;
-      case 6:
-        robot_state = ROBOT_STATE_TEST_INIT;
-        break;
-      default:
-        robot_state = ROBOT_STATE_IDLE;
-        break;
-    }
-  }
+
+      if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
+           HAL_Delay(200);
+      }
+
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
+             HAL_Delay(200);
+      }
+
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1) == GPIO_PIN_SET){
+             HAL_Delay(200);
+      }
+
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
+              HAL_Delay(200);
+      }
 }
 
 void Close_All_Old_Func(void)
