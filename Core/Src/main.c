@@ -42,6 +42,7 @@
 #include "QRCode_State.h"
 #include "lcd_spi_154.h"
 #include "cross.h"
+#include "turn.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -913,7 +914,7 @@ void BUTTON_CHANGE(void)
 
       if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
       time_sca += 1U;
-      if(time_sca == 5U) {
+      if(time_sca == 4U) {
           time_sca = 1U; // 防止溢出
         }
       }
@@ -935,12 +936,7 @@ void BUTTON_CHANGE(void)
       }
 
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
-        g_cross_scale[5] += 0.1f;
-        g_cross_scale[11] += 0.1f;
-         if(g_cross_scale[5] > 1.55f) {
-          g_cross_scale[5] = 1.0f; // 防止溢出
-          g_cross_scale[11] = 1.0f;
-        }
+      Turn_Play(time_sca, 1U);
       }
 }
 

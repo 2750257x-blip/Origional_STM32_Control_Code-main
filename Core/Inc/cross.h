@@ -60,4 +60,19 @@ extern volatile float g_cross_scale[CROSS_JOINT_COUNT];
  */
 void Cross_Play(uint8_t time_scale, uint32_t loops);
 
+/*
+ * 通用轨迹播放器，Cross_Play 和 Turn_Play 都走这个。
+ *   frames      : 帧数组，每行 CROSS_JOINT_COUNT(=12) 列，模型坐标系、未取反
+ *   frame_count : 帧数
+ *   scale       : 每个关节的倍率数组，长度 12，全 1.0 = 不改
+ *   time_scale  : 时间倍数，整数 >= 1（越大越慢，放慢时帧间线性插值）
+ *   loops       : 重复遍数，>= 1
+ * 行为、输出路径和阻塞特性和 Cross_Play 完全一样，详见 Cross_Play 的说明。
+ */
+void Trajectory_Play(const float (*frames)[CROSS_JOINT_COUNT],
+                     uint32_t frame_count,
+                     const volatile float *scale,
+                     uint8_t time_scale,
+                     uint32_t loops);
+
 #endif

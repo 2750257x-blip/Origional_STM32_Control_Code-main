@@ -67,7 +67,15 @@ static void cross_wait_next_tick(uint32_t *next_ms)
     }
 }
 
-void Cross_Play(uint8_t time_scale, uint32_t loops)
+/* 通用轨迹播放器：cross.c 和 turn.c 共用。
+ * frames/scale 来自调用方，所以同一条代码路径既能放 cross_frames 也能放 turn_frames，
+ * 输出方式（ApplyModelTargets）和阻塞行为完全一致。
+ * frame_count 一行几列必须等于 CROSS_JOINT_COUNT（= 12）。 */
+void Trajectory_Play(const float (*frames)[CROSS_JOINT_COUNT],
+                     uint32_t frame_count,
+                     const volatile float *scale,
+                     uint8_t time_scale,
+                     uint32_t loops)
 {
     float    target[CROSS_JOINT_COUNT];
     float    step;
@@ -75,17 +83,18 @@ void Cross_Play(uint8_t time_scale, uint32_t loops)
     uint32_t loop;
     uint32_t next_ms;
 
-    if ((time_scale == 0U) || (loops == 0U)) {
+    if ((frames == 0) || (scale == 0) || (frame_count == 0U) ||
+        (time_scale == 0U) || (loops == 0U)) {
         return;
     }
 
     /* 一条轨迹切成多少个 20ms 节拍：倍数越大节拍越多、整体越慢。
-     * step 保证帧位置正好覆盖 0~38 一整圈。 */
-    ticks = (uint32_t)CROSS_FRAME_COUNT * (uint32_t)time_scale;
+     * step 保证帧位置正好覆盖 0~frame_count 一整圈。 */
+    ticks = frame_count * (uint32_t)time_scale;
     if (ticks == 0U) {
         ticks = 1U;
     }
-    step = (float)CROSS_FRAME_COUNT / (float)ticks;
+    step = (float)frame_count / (float)ticks;
 
     next_ms = HAL_GetTick();
 
@@ -93,20 +102,24 @@ void Cross_Play(uint8_t time_scale, uint32_t loops)
         uint32_t tick;
 
         for (tick = 0U; tick < ticks; ++tick) {
-            /* 0 ~ 38 之间的小数，表示走到轨迹的第几帧 */
+            /* 0 ~ frame_count 之间的小数，表示走到轨迹的第几帧 */
             float    frame_pos = (float)tick * step;
             uint32_t index     = (uint32_t)frame_pos;
             float    frac      = frame_pos - (float)index;
             uint8_t  joint;
 
+            if (index >= frame_count) {
+                index = frame_count - 1U;
+            }
+
             /* 线性插值。time_scale = 1 时 frac 恒为 0，等于原样播放（其余整数倍
-             * 靠 ticks 把 38 帧摊开，帧与帧之间插值，所以放慢也是平滑的）。
+             * 靠 ticks 把整条轨迹摊开，帧与帧之间插值，所以放慢也是平滑的）。
              * 再乘上每个关节自己的倍率。 */
             for (joint = 0U; joint < CROSS_JOINT_COUNT; ++joint) {
-                float a = cross_frames[index][joint];
-                float b = cross_frames[(index + 1U) % CROSS_FRAME_COUNT][joint];
+                float a = frames[index][joint];
+                float b = frames[(index + 1U) % frame_count][joint];
                 float value = a + ((b - a) * frac);
-                target[joint] = value * g_cross_scale[joint];
+                target[joint] = value * scale[joint];
             }
 
             /* 和 Nano 指令走同一条路径：符号翻转 + 前倾 + roll 偏置 + 限位 */
@@ -115,4 +128,9 @@ void Cross_Play(uint8_t time_scale, uint32_t loops)
             cross_wait_next_tick(&next_ms);
         }
     }
+}
+
+void Cross_Play(uint8_t time_scale, uint32_t loops)
+{
+    Trajectory_Play(cross_frames, CROSS_FRAME_COUNT, g_cross_scale, time_scale, loops);
 }
