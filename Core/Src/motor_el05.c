@@ -28,6 +28,12 @@ static float uint_to_float(uint16_t x, float x_min, float x_max, uint8_t bits)
 // 根据电机ID获取安全限位
 static void get_safe_limit(uint8_t motor_id, float *p_min, float *p_max)
 {
+#if !JETSON_MOTOR_TARGET_CLIP_ENABLED
+    (void)motor_id;
+    /* Protocol float_to_uint still enforces its representable position range. */
+    *p_min = P_MIN;
+    *p_max = P_MAX;
+#else
     switch(motor_id)
     {
         case r_leg_pitch:
@@ -65,6 +71,7 @@ static void get_safe_limit(uint8_t motor_id, float *p_min, float *p_max)
             *p_max = P_MAX;
             break;
     }
+#endif
 }
 
 // 拼接29位CAN扩展ID（手册4.1：通信类型(5bit)+主机ID(8bit)+电机ID(8bit)，其余保留）

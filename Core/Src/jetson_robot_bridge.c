@@ -4,6 +4,7 @@
 #include "imu.h"
 #include "jetson_protocol.h"
 #include "jetson_usb_cdc.h"
+#include "jetson_robot_limits.h"
 #include "motor_el05.h"
 #include "protocol.h"
 
@@ -19,7 +20,6 @@ static uint32_t last_applied_command_count;
 
 /* ---- 反馈前向预测滤波 ---- */
 #define SMOOTHING_ALPHA         0.0f     /* 0~1: 越大越跟随预测值 */
-#define FRAME_ANGLE_LIMIT       0.5f     /* 反馈偏离目标的最大单帧变化量 (rad) */
 #define MAX_PREDICT_DT_MS       50U      /* 预测dt上限 (ms)，防止卡顿瞬间跳变 */
 
 /* ---- 前倾 20° + 反馈冻结 ---- */
@@ -333,11 +333,8 @@ uint8_t JetsonRobotBridge_SendState(void)
                         + (1.0f - SMOOTHING_ALPHA) * raw_pos;
 
 
-        /* 3. 单帧限幅 —— 反馈偏离目标不超过限制值，过滤跳变 */
-        float delta = corrected - target_position[index];
-        if (delta > FRAME_ANGLE_LIMIT)  delta = FRAME_ANGLE_LIMIT;
-        if (delta < -FRAME_ANGLE_LIMIT) delta = -FRAME_ANGLE_LIMIT;
-        corrected = target_position[index] + delta;
+        /* Optional feedback error clip; configured in jetson_robot_limits.h. */
+        corrected = JetsonLimits_ClipFeedbackPosition(corrected, target_position[index]);
 
         state.joint_position[index] = corrected;
         state.joint_velocity[index] = raw_vel;
