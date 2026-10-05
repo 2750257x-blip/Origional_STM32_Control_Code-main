@@ -266,7 +266,7 @@ int main(void)
   }
 
   //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-  Action_Goto(0.20f, -0.20f, 0.0f, -0.30f, -0.15f, -0.20f, -0.20f, 0.20f, 0.0f, 0.30f, 0.15f, 0.20f, 25);
+  Action_Goto(0.15f, -0.20f, 0.0f, -0.30f, -0.15f, -0.20f, -0.15f, 0.20f, 0.0f, 0.30f, 0.15f, 0.20f, 25);
   //Action_Goto(0.15f, 0.05f, 0.0f, -0.30f, -0.15f, 0.0f, -0.15f, -0.05f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   system_control_warning = 0;
   /* USER CODE END 2 */

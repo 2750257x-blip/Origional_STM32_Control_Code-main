@@ -62,8 +62,8 @@ volatile uint8_t g_debug_feedback_freeze;
 
 extern volatile uint32_t system_control_cycle;
  
-const float kp_add = 1.0f;
-const float kd_add = 1.0f;
+const float kp_add = 1.2f;
+const float kd_add = 1.2f;
 static float limit_gain_scale(float scale)
 {
     if (!isfinite(scale) || (scale < 0.0f)) {
@@ -73,6 +73,16 @@ static float limit_gain_scale(float scale)
         return MAX_GAIN_SCALE;
     }
     return scale;
+}
+
+static void stop_all_motors(void)
+{
+    uint8_t index;
+
+    for (index = 0U; index < 6U; ++index) {
+        EL05_Motor_Stop(&hfdcan1, (uint8_t)(r_leg_pitch + index));
+        EL05_Motor_Stop(&hfdcan2, (uint8_t)(l_leg_pitch + index));
+    }
 }
 
 /* 前倾角按斜率爬向目标，避免站立状态下力矩瞬间打满 */
@@ -157,10 +167,10 @@ static bool command_targets_are_valid(const RobotCommandPayload *command)
 static void apply_position_targets(const RobotCommandPayload *command)
 {
     static const float base_kp[6] = {
-        35.0f, 30.0f, 20.0f, 35.0f, 30.0f, 12.0f
+        35.0f, 30.0f, 20.0f, 35.0f, 15.0f, 12.0f
     };
     static const float base_kd[6] = {
-        1.5f, 1.2f, 1.0f, 1.5f, 1.6f, 0.7f
+        1.5f, 1.2f, 1.0f, 1.5f, 0.8f, 0.7f
     };
     static const uint8_t left_motor_id[6] = {
         l_leg_pitch, l_leg_roll, l_leg_yaw,
@@ -180,9 +190,9 @@ static void apply_position_targets(const RobotCommandPayload *command)
 
     for (index = 0U; index < 6U; ++index) {
         float target = motor_direction_target(index, command->joint_target[index]);
-        //  if(index == 0U) {
-        //     target = target - 0.08f;
-        // }
+         if(index == 0U) {
+            target = target + 0.1f;
+        }
         g_debug_motor_target[index] = target;
         Motor_limitCtrl_float(
             &hfdcan2,
@@ -198,9 +208,9 @@ static void apply_position_targets(const RobotCommandPayload *command)
         float target = motor_direction_target(
             protocol_index,
             command->joint_target[protocol_index]);
-        // if(index == 0U) {
-        //     target = target +  0.08f;
-        // }    
+        if(index == 0U) {
+            target = target - 0.1f;
+        }    
         g_debug_motor_target[protocol_index] = target;
         Motor_limitCtrl_float(
             &hfdcan1,
@@ -292,7 +302,13 @@ void JetsonRobotBridge_ProcessCommand(void)
 
     if (!fresh) {
         if (g_debug_jetson_control_active != 0U) {
-            reboot_home();
+            stop_all_motors();
+            while(1){
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
+            HAL_Delay(1000);
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
+            HAL_Delay(1000);
+            }
         }
         return;
     }
@@ -305,14 +321,26 @@ void JetsonRobotBridge_ProcessCommand(void)
     if (((command.command_flags & COMMAND_ENABLE) == 0U) ||
         ((command.command_flags & COMMAND_ESTOP) != 0U)) {
         if (g_debug_jetson_control_active != 0U) {
-            reboot_home();
+          stop_all_motors();
+          while(1){
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
+            HAL_Delay(1000);
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
+            HAL_Delay(1000);
+            }
         }
         return;
     }
 
     if (!command_targets_are_valid(&command)) {
         if (g_debug_jetson_control_active != 0U) {
-            reboot_home();
+          stop_all_motors();
+          while(1){
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
+            HAL_Delay(1000);
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
+            HAL_Delay(1000);
+            }
         }
         ++g_debug_invalid_command_count;
         return;
