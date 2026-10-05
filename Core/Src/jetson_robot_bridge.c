@@ -53,6 +53,16 @@ volatile float g_bias_ankle_roll = -0.03f;   /* 踝 roll：左 joint 5，右 joi
  * 单位 rad，可正可负，0 = 不加。ST-Link 实时改，下一帧生效。 */
 volatile float g_bias_hip_pitch = 0.0f;
 
+/* ---- 平衡偏置（隐藏给 Nano，防前倾栽倒）----
+ * 电机侧：fdcan1(右腿) 髋/踝 pitch 变大、fdcan2(左腿) 髋/踝 pitch 变小，四个关节等量转，
+ * 机身整体后仰而不改脚底朝向。和上面同一套路：motor_direction_target() 加、
+ * remove_joint_bias() 减，一来一回抵消，Nano 看到的仍是自己下发的角度。
+ * 髋、踝拆成两个量是为了能各自微调；要"四个关节等量"就把两个设成同一个值。
+ * joint 0/4/6/10 都在翻转名单里，所以反馈侧符号和 roll 那组相反。
+ * 单位 rad，可正可负，0 = 不加。方向反了就把值取负。ST-Link 实时改，下一帧生效。 */
+volatile float g_bias_balance_hip_pitch   = 0.1f;   /* 髋 pitch：右 joint 6 +，左 joint 0 − */
+volatile float g_bias_balance_ankle_pitch = 0.1f;   /* 踝 pitch：右 joint 10 +，左 joint 4 − */
+
 /* 冻结快照：前倾指令生效前抓的那一帧，冻结期间原样回放给 Nano */
 static float frozen_joint_position[PROTOCOL_NUM_JOINTS];
 static float frozen_joint_velocity[PROTOCOL_NUM_JOINTS];
@@ -72,8 +82,8 @@ volatile uint8_t g_debug_feedback_freeze;
 
 extern volatile uint32_t system_control_cycle;
  
-const float kp_add = 1.5f;
-const float kd_add = 1.5f;
+const float kp_add = 1.2f;
+const float kd_add = 1.2f;
 static float limit_gain_scale(float scale)
 {
     if (!isfinite(scale) || (scale < 0.0f)) {
@@ -149,6 +159,17 @@ static float motor_direction_target(uint8_t joint_index, float model_target)
     } else if (joint_index == 6U) {     /* 右髋 pitch */
         target -= g_bias_hip_pitch;
     }
+    /* 平衡偏置：右腿(fdcan1)髋/踝 pitch 变大、左腿(fdcan2)变小，隐藏给 Nano */
+    if (joint_index == 6U) {            /* 右髋 pitch */
+        target += g_bias_balance_hip_pitch;
+    } else if (joint_index == 0U) {     /* 左髋 pitch */
+        target -= g_bias_balance_hip_pitch;
+    }
+    if (joint_index == 10U) {           /* 右踝 pitch */
+        target += g_bias_balance_ankle_pitch;
+    } else if (joint_index == 4U) {     /* 左踝 pitch */
+        target -= g_bias_balance_ankle_pitch;
+    }
     return target;
 }
 
@@ -166,9 +187,13 @@ static float remove_joint_bias(uint8_t joint_index, float value)
     } else if (joint_index == 11U) {    /* 右踝 roll */
         return value + g_bias_ankle_roll;
     } else if (joint_index == 0U) {     /* 左髋 pitch（翻转坐标系，符号相反） */
-        return value + g_bias_hip_pitch;
+        return value + g_bias_hip_pitch - g_bias_balance_hip_pitch;
     } else if (joint_index == 6U) {     /* 右髋 pitch */
-        return value - g_bias_hip_pitch;
+        return value - g_bias_hip_pitch + g_bias_balance_hip_pitch;
+    } else if (joint_index == 4U) {     /* 左踝 pitch（翻转坐标系，符号相反） */
+        return value - g_bias_balance_ankle_pitch;
+    } else if (joint_index == 10U) {    /* 右踝 pitch */
+        return value + g_bias_balance_ankle_pitch;
     }
     return value;
 }
