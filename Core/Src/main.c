@@ -90,6 +90,23 @@ uint8_t usb_tx_buffer[120] = {0};
 uint8_t action_count = 0;
 uint8_t action_count_finished = 0;
 
+/* 状态帧发送节流：距上次成功发送满 g_state_send_interval_ms 才发下一帧。
+ * 不再用 imu_data_ready 做门控——IMU 掉数据/掉电时那个锁存永远凑不齐，
+ * 门控恒假会导致一帧都不发、Nano 100ms 超时掉线。可 ST-Link 实时改。 */
+volatile uint32_t g_state_send_interval_ms = 20U;
+volatile uint32_t g_state_send_last_ms = 0U;
+
+/* ---- 断联定位诊断（只读，改了不影响控制行为）----
+ * 断联当下用 SWD 读这几个量即可分辨原因：
+ *   g_main_loop_count 不涨            -> CPU 卡住：三个 while(1) 之一，或 fault
+ *   g_main_loop_max_dt_ms >= 100      -> 主循环被某个阻塞段堵过（HAL_Delay / Action_Goto）
+ *   g_state_send_busy_streak 持续涨   -> SendState 一直 BUSY（TxState 卡死），设备在总线上但不发 */
+volatile uint32_t g_main_loop_count = 0U;
+volatile uint32_t g_main_loop_max_dt_ms = 0U;
+volatile uint32_t g_state_send_ok_count = 0U;
+volatile uint32_t g_state_send_fail_count = 0U;
+volatile uint32_t g_state_send_busy_streak = 0U;
+
 
 volatile uint32_t system_control_cycle = 0;
 volatile uint32_t system_control_cycle_copy = 0;
@@ -177,6 +194,7 @@ int main(void)
   /* USER CODE END 1 */
 
   /* MPU Configuration--------------------------------------------------------*/
+
 
   MPU_Config();
 
@@ -266,7 +284,7 @@ int main(void)
   }
 
   //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-  Action_Goto(0.15f, -0.20f, 0.0f, -0.30f, -0.15f, -0.20f, -0.15f, 0.20f, 0.0f, 0.30f, 0.15f, 0.20f, 25);
+  Action_Goto(0.15f, -0.20f, 0.0f, -0.30f, -0.15f, -0.20f, -0.15f, 0.20f, 0.0f, 0.30f, 0.15f, 0.20f, 50);
   //Action_Goto(0.15f, 0.05f, 0.0f, -0.30f, -0.15f, 0.0f, -0.15f, -0.05f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   system_control_warning = 0;
   /* USER CODE END 2 */
@@ -275,9 +293,18 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   imu_set_zero();                         // 清零四元数，使复位后姿态归零
   HAL_Delay(500);
+  uint32_t loop_last_ms = HAL_GetTick();
   while (1)
   {
-    //BUTTON_CHANGE(); 
+    //BUTTON_CHANGE();
+    /* 主循环最长间隔（诊断，见 g_main_loop_*）*/
+    {
+      uint32_t loop_now_ms = HAL_GetTick();
+      uint32_t loop_dt_ms = loop_now_ms - loop_last_ms;
+      loop_last_ms = loop_now_ms;
+      if (loop_dt_ms > g_main_loop_max_dt_ms) g_main_loop_max_dt_ms = loop_dt_ms;
+      g_main_loop_count++;
+    }
     /* 通信和腿部闭环与当前动作无关，每轮都先服务一次 */
     ROBOT_Comms_Service();
     Robot_State_Machine();
@@ -573,18 +600,24 @@ void ROBOT_Comms_Service(void)
   // }
   //汇总电机状态和IMU数据，使用与通信测试工程相同的帧协议上传Nano
   __disable_irq();
-  uint16_t motor_status_ready_copy = motor_status_ready; 
-  uint8_t imu_data_ready_copy = imu_data_ready; 
+  uint16_t motor_status_ready_copy = motor_status_ready;
   __enable_irq();
+  /* 发送触发改成纯时间节流：距上次成功发送满 g_state_send_interval_ms 就发。
+   * 不再依赖 imu_data_ready / IMU_DataIsFresh 做门控——IMU 掉数据/掉电时
+   * 那个锁存永远凑不齐，门控恒假会导致一帧都不发、Nano 100ms 超时掉线。
+   * 帧里的 STATE_IMU_VALID 仍由 SendState() 依 imu_data_ready + 新鲜度计算，
+   * 所以 IMU 坏了 Nano 看得出来，但链路本身不会断。 */
+  uint32_t now_ms = HAL_GetTick();
   if (motor_status_ready_copy == 0x0FFF &&
-      (imu_data_ready_copy & IMU_DATA_REQUIRED) == IMU_DATA_REQUIRED &&
-      IMU_DataIsFresh(HAL_GetTick(), 50U)) {
+      (uint32_t)(now_ms - g_state_send_last_ms) >= g_state_send_interval_ms) {
     if (JetsonRobotBridge_SendState() == USBD_OK) { // USB发送成功
-    __disable_irq();
-   // motor_status_ready = 0; // 重置计数
-    imu_data_ready = 0;
-   // system_control_cycle ++;
-    __enable_irq();
+      g_state_send_last_ms = now_ms;
+      g_state_send_ok_count++;
+      g_state_send_busy_streak = 0U;
+      // imu_data_ready = 0;   // 不再清：门控已改成时间节流，清了也没用
+    } else {
+      g_state_send_fail_count++;
+      g_state_send_busy_streak++;
     }
   }
 
@@ -608,6 +641,7 @@ void ROBOT_Comms_Service(void)
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   // }
   if(imu_warning >=2 && imu_warning <=100) {
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
   imu_change_to_request();                // 切到请求模式才能配置
   HAL_Delay(20);
   imu_set_active_mode_delay(10);          // 100Hz (10ms)
@@ -615,6 +649,7 @@ void ROBOT_Comms_Service(void)
   imu_save_parameters();                  // 保存到IMU内部Flash
   HAL_Delay(20);
   imu_change_to_active();                 // 切换到主动模式
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
   }
 }
 

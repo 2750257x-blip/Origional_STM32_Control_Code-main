@@ -56,6 +56,7 @@ static uint32_t last_send_tick_ms;
 volatile float g_debug_motor_target[PROTOCOL_NUM_JOINTS];
 volatile uint8_t g_debug_jetson_control_active;
 volatile uint32_t g_debug_watchdog_trip_count;
+volatile uint32_t g_debug_estop_trip_count;
 volatile uint32_t g_debug_invalid_command_count;
 volatile float   g_debug_pose_lean_applied;
 volatile uint8_t g_debug_feedback_freeze;
@@ -190,9 +191,9 @@ static void apply_position_targets(const RobotCommandPayload *command)
 
     for (index = 0U; index < 6U; ++index) {
         float target = motor_direction_target(index, command->joint_target[index]);
-         if(index == 0U) {
-            target = target + 0.1f;
-        }
+        //  if(index == 0U) {
+        //     target = target + 0.1f;
+        // }
         g_debug_motor_target[index] = target;
         Motor_limitCtrl_float(
             &hfdcan2,
@@ -208,9 +209,9 @@ static void apply_position_targets(const RobotCommandPayload *command)
         float target = motor_direction_target(
             protocol_index,
             command->joint_target[protocol_index]);
-        if(index == 0U) {
-            target = target - 0.1f;
-        }    
+        // if(index == 0U) {
+        //     target = target - 0.1f;
+        // }    
         g_debug_motor_target[protocol_index] = target;
         Motor_limitCtrl_float(
             &hfdcan1,
@@ -269,6 +270,7 @@ void JetsonRobotBridge_Init(void)
     memset((void *)g_debug_motor_target, 0, sizeof(g_debug_motor_target));
     g_debug_jetson_control_active = 0U;
     g_debug_watchdog_trip_count = 0U;
+    g_debug_estop_trip_count = 0U;
     g_debug_invalid_command_count = 0U;
     memset(target_position, 0, sizeof(target_position));
     lean_target = 0.0f;
@@ -302,13 +304,9 @@ void JetsonRobotBridge_ProcessCommand(void)
 
     if (!fresh) {
         if (g_debug_jetson_control_active != 0U) {
-            stop_all_motors();
-            while(1){
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
-            HAL_Delay(1000);
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
-            HAL_Delay(1000);
-            }
+            ++g_debug_watchdog_trip_count;
+
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
         }
         return;
     }
@@ -321,28 +319,21 @@ void JetsonRobotBridge_ProcessCommand(void)
     if (((command.command_flags & COMMAND_ENABLE) == 0U) ||
         ((command.command_flags & COMMAND_ESTOP) != 0U)) {
         if (g_debug_jetson_control_active != 0U) {
-          stop_all_motors();
-          while(1){
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-            HAL_Delay(1000);
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-            HAL_Delay(1000);
-            }
+          ++g_debug_estop_trip_count;
+
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+            HAL_NVIC_SystemReset();
         }
         return;
     }
 
     if (!command_targets_are_valid(&command)) {
-        if (g_debug_jetson_control_active != 0U) {
-          stop_all_motors();
-          while(1){
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-            HAL_Delay(1000);
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-            HAL_Delay(1000);
-            }
-        }
         ++g_debug_invalid_command_count;
+        if (g_debug_jetson_control_active != 0U) {
+
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+            stop_all_motors();
+        }
         return;
     }
 
