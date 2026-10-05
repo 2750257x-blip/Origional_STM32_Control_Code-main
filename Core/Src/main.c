@@ -237,28 +237,28 @@ int main(void)
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);    // 启动PWM信号输出（舵机控制）
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);    // 启动PWM信号输出（舵机控制）
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);    // 启动PWM信号输出（舵机控制）
-  SPI_LCD_Init();			// SPI LCD屏幕初始化
+  //SPI_LCD_Init();			// SPI LCD屏幕初始化
   motor_enable();
   HAL_Delay(100);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim2);   // 动作节拍时基（10 ms）
-  LCD_DisplayText(10, 10, "Mode: IDLE");
-  LCD_DisplayText(10, 34, "motor_r: ");
-  LCD_DisplayNumber(118, 34, 0, 6);
-  LCD_DisplayText(10, 58, "motor_l: ");
-  LCD_DisplayNumber(118, 58, 0, 6);
-  LCD_DisplayText(10, 82, "motor_state: ");
-  LCD_DisplayHex(166, 82, 0, 4);
-  LCD_DisplayText(10, 106, "motor_fault: ");
-  LCD_DisplayHex(166, 106, 0, 4);
-  LCD_DisplayText(10, 130, "imu_ready: ");
-  LCD_DisplayHex(142, 130, 0, 2);
-  LCD_DisplayText(10, 154, "cycle: ");
-  LCD_DisplayNumber(94, 154, 0, 2);
-  LCD_DisplayText(10, 178, "warning: ");
-  LCD_DisplayNumber(118, 178, 0, 4);
-  LCD_DisplayText(10, 202, "imu_n: ");
-  LCD_DisplayNumber(94, 202, imu_data_count, 8);
+  // LCD_DisplayText(10, 10, "Mode: IDLE");
+  // LCD_DisplayText(10, 34, "motor_r: ");
+  // LCD_DisplayNumber(118, 34, 0, 6);
+  // LCD_DisplayText(10, 58, "motor_l: ");
+  // LCD_DisplayNumber(118, 58, 0, 6);
+  // LCD_DisplayText(10, 82, "motor_state: ");
+  // LCD_DisplayHex(166, 82, 0, 4);
+  // LCD_DisplayText(10, 106, "motor_fault: ");
+  // LCD_DisplayHex(166, 106, 0, 4);
+  // LCD_DisplayText(10, 130, "imu_ready: ");
+  // LCD_DisplayHex(142, 130, 0, 2);
+  // LCD_DisplayText(10, 154, "cycle: ");
+  // LCD_DisplayNumber(94, 154, 0, 2);
+  // LCD_DisplayText(10, 178, "warning: ");
+  // LCD_DisplayNumber(118, 178, 0, 4);
+  // LCD_DisplayText(10, 202, "imu_n: ");
+  // LCD_DisplayNumber(94, 202, imu_data_count, 8);
 
   for(int i=0; i<12; i++)
   {
@@ -266,7 +266,7 @@ int main(void)
   }
 
   //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-  Action_Goto(0.20f, 0.0f, 0.0f, -0.30f, -0.15f, 0.0f, -0.20f, 0.0f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
+  Action_Goto(0.20f, -0.20f, 0.0f, -0.30f, -0.15f, -0.20f, -0.20f, 0.20f, 0.0f, 0.30f, 0.15f, 0.20f, 25);
   //Action_Goto(0.15f, 0.05f, 0.0f, -0.30f, -0.15f, 0.0f, -0.15f, -0.05f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   system_control_warning = 0;
   /* USER CODE END 2 */
@@ -281,7 +281,7 @@ int main(void)
     /* 通信和腿部闭环与当前动作无关，每轮都先服务一次 */
     ROBOT_Comms_Service();
     Robot_State_Machine();
-    LCD_State_Machine();
+    //LCD_State_Machine();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -375,8 +375,8 @@ void Robot_State_Machine(void)
       // 状态0：日常电机+IMU+USB双向通信
       case ROBOT_STATE_IDLE:
       {
-        Servo_SetAngle(&htim1, TIM_CHANNEL_1, (uint8_t)(180-(-MotorIMU_Packet_float[12]/3+30)));
-        Servo_SetAngle(&htim1, TIM_CHANNEL_2, (uint8_t)(MotorIMU_Packet_float[0]/3+30));
+        //Servo_SetAngle(&htim1, TIM_CHANNEL_1, (uint8_t)(180-(-MotorIMU_Packet_float[12]/3+30)));
+        //Servo_SetAngle(&htim1, TIM_CHANNEL_2, (uint8_t)(MotorIMU_Packet_float[0]/3+30));
         break;
       }
       // 状态1：举右手
@@ -539,8 +539,8 @@ void ROBOT_Comms_Service(void)
     if (!Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
         g_debug_jetson_control_active == 0U) {
       robot_state = ROBOT_STATE_IDLE;
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
       Servo_SetAngle(&htim1, TIM_CHANNEL_3, 90);
       active_action_status = ACTION_STATUS_FAILED;
       Queue_Action_Status(active_event_id, active_action_id, active_action_status);
@@ -625,7 +625,7 @@ void ROBOT_RHAND(void)
     case 0:                                   /* 举右手，保持 3.2 s */
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : RHAND");
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 0);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
       Action_Step_Begin();
       action_step = 1U;
       break;
@@ -633,7 +633,7 @@ void ROBOT_RHAND(void)
     case 1:
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
@@ -648,7 +648,7 @@ void ROBOT_LHAND(void)
     case 0:                                   /* 举左手，保持 3.2 s */
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : LHAND");
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 180);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       Action_Step_Begin();
       action_step = 1U;
       break;
@@ -656,7 +656,7 @@ void ROBOT_LHAND(void)
     case 1:
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
@@ -736,8 +736,8 @@ void ROBOT_BOTHH(void)
     case 0:                                   /* 举双手，保持 3.2 s */
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(10, 10, "Mode : BOTHH");
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 0);
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 180);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       Action_Step_Begin();
       action_step = 1U;
       break;
@@ -745,8 +745,8 @@ void ROBOT_BOTHH(void)
     case 1:
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
-      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
+      Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
       LCD_ClearRect(10, 10, 240, 24);
       LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
@@ -763,7 +763,7 @@ void ROBOT_CROSS(void)
   LCD_ClearRect(10, 10, 240, 24);
   LCD_DisplayText(0, 10, "Mode : IDLE");
 }
-//sk-f14f125467984078979ed8ef4f748cc5
+
 void ROBOT_TEST_IMU(void)
 {
   if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){

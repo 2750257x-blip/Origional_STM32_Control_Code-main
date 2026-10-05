@@ -41,8 +41,8 @@ static uint32_t lean_last_ms;
  * 左右腿是 mirror 装配，所以偏置反号：左腿 +bias，右腿 −bias。
  * 单位 rad（0.0175 rad ≈ 1°），可正可负，0 表示不加。
  * 直接改这两个量（ST-Link Live Expressions / 调试器），下一帧生效。 */
-volatile float g_bias_hip_roll   = -0.02f;   /* 髋 roll：左 joint 1，右 joint 7 */
-volatile float g_bias_ankle_roll = -0.02f;   /* 踝 roll：左 joint 5，右 joint 11 */
+volatile float g_bias_hip_roll   = -0.03f;   /* 髋 roll：左 joint 1，右 joint 7 */
+volatile float g_bias_ankle_roll = -0.03f;   /* 踝 roll：左 joint 5，右 joint 11 */
 
 /* 冻结快照：前倾指令生效前抓的那一帧，冻结期间原样回放给 Nano */
 static float frozen_joint_position[PROTOCOL_NUM_JOINTS];
@@ -62,8 +62,8 @@ volatile uint8_t g_debug_feedback_freeze;
 
 extern volatile uint32_t system_control_cycle;
  
-const float kp_add = 1.5f;
-const float kd_add = 2.1f;
+const float kp_add = 1.0f;
+const float kd_add = 1.0f;
 static float limit_gain_scale(float scale)
 {
     if (!isfinite(scale) || (scale < 0.0f)) {
@@ -157,10 +157,10 @@ static bool command_targets_are_valid(const RobotCommandPayload *command)
 static void apply_position_targets(const RobotCommandPayload *command)
 {
     static const float base_kp[6] = {
-        40.0f, 40.0f, 40.0f, 40.0f, 40.0f, 40.0f
+        35.0f, 30.0f, 20.0f, 35.0f, 30.0f, 12.0f
     };
     static const float base_kd[6] = {
-        2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f
+        1.5f, 1.2f, 1.0f, 1.5f, 1.6f, 0.7f
     };
     static const uint8_t left_motor_id[6] = {
         l_leg_pitch, l_leg_roll, l_leg_yaw,
