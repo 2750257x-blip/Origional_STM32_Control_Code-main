@@ -63,8 +63,8 @@ volatile uint8_t g_debug_feedback_freeze;
 
 extern volatile uint32_t system_control_cycle;
  
-const float kp_add = 1.5f;
-const float kd_add = 2.1f;
+const float kp_add = 1.0f;
+const float kd_add = 1.0f;
 static float limit_gain_scale(float scale)
 {
     if (!isfinite(scale) || (scale < 0.0f)) {
@@ -158,10 +158,10 @@ static bool command_targets_are_valid(const RobotCommandPayload *command)
 static void apply_position_targets(const RobotCommandPayload *command)
 {
     static const float base_kp[6] = {
-        40.0f, 40.0f, 40.0f, 40.0f, 40.0f, 40.0f
+        35.0f, 30.0f, 20.0f, 35.0f, 45.0f, 24.0f
     };
     static const float base_kd[6] = {
-        2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f
+        1.5f, 1.2f, 1.0f, 1.5f, 2.4f, 1.4f
     };
     static const uint8_t left_motor_id[6] = {
         l_leg_pitch, l_leg_roll, l_leg_yaw,
@@ -293,9 +293,10 @@ void JetsonRobotBridge_ProcessCommand(void)
 
     if (!fresh) {
         if (g_debug_jetson_control_active != 0U) {
-            stop_all_motors();
-            g_debug_jetson_control_active = 0U;
-            ++g_debug_watchdog_trip_count;
+            HAL_NVIC_SystemReset();
+            // stop_all_motors();
+            // g_debug_jetson_control_active = 0U;
+            // ++g_debug_watchdog_trip_count;
         }
         return;
     }
@@ -308,16 +309,18 @@ void JetsonRobotBridge_ProcessCommand(void)
     if (((command.command_flags & COMMAND_ENABLE) == 0U) ||
         ((command.command_flags & COMMAND_ESTOP) != 0U)) {
         if (g_debug_jetson_control_active != 0U) {
-            stop_all_motors();
-            g_debug_jetson_control_active = 0U;
+            HAL_NVIC_SystemReset();
+            // stop_all_motors();
+            // g_debug_jetson_control_active = 0U;
         }
         return;
     }
 
     if (!command_targets_are_valid(&command)) {
         if (g_debug_jetson_control_active != 0U) {
-            stop_all_motors();
-            g_debug_jetson_control_active = 0U;
+            HAL_NVIC_SystemReset();
+            // stop_all_motors();
+            // g_debug_jetson_control_active = 0U;
         }
         ++g_debug_invalid_command_count;
         return;

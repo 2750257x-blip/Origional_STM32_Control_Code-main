@@ -178,6 +178,9 @@ int main(void)
 
   /* MPU Configuration--------------------------------------------------------*/
 
+
+
+
   MPU_Config();
 
   /* Enable the CPU Cache */
@@ -219,7 +222,7 @@ int main(void)
   MX_SPI6_Init();
   /* USER CODE BEGIN 2 */
   JetsonRobotBridge_Init();
-  HAL_Delay(200);       // 电机上电延时
+  HAL_Delay(50);       // 电机上电延时
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
   imu_init(0x0F, 0xFD, &hfdcan3);
   // ==== 配置主动模式 100Hz 输出 6轴+四元数 ====
@@ -239,7 +242,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);    // 启动PWM信号输出（舵机控制）
   SPI_LCD_Init();			// SPI LCD屏幕初始化
   motor_enable();
-  HAL_Delay(100);
+  HAL_Delay(50);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim2);   // 动作节拍时基（10 ms）
   LCD_DisplayText(10, 10, "Mode: IDLE");
@@ -266,7 +269,7 @@ int main(void)
   }
 
   //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-  Action_Goto(0.20f, 0.0f, 0.0f, -0.30f, -0.15f, 0.0f, -0.20f, 0.0f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
+  Action_Goto(0.20f, -0.20f, 0.0f, -0.30f, -0.15f, -0.20f, -0.20f, 0.20f, 0.0f, 0.30f, 0.15f, 0.20f, 25);
   //Action_Goto(0.15f, 0.05f, 0.0f, -0.30f, -0.15f, 0.0f, -0.15f, -0.05f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   system_control_warning = 0;
   /* USER CODE END 2 */
@@ -274,7 +277,7 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   imu_set_zero();                         // 清零四元数，使复位后姿态归零
-  HAL_Delay(500);
+  HAL_Delay(200);
   LCD_State_Machine();
   while (1)
   {
