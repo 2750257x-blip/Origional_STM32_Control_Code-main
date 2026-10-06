@@ -60,8 +60,8 @@ volatile float g_bias_hip_pitch = 0.0f;
  * 髋、踝拆成两个量是为了能各自微调；要"四个关节等量"就把两个设成同一个值。
  * joint 0/4/6/10 都在翻转名单里，所以反馈侧符号和 roll 那组相反。
  * 单位 rad，可正可负，0 = 不加。方向反了就把值取负。ST-Link 实时改，下一帧生效。 */
-volatile float g_bias_balance_hip_pitch   = 0.1f;   /* 髋 pitch：右 joint 6 +，左 joint 0 − */
-volatile float g_bias_balance_ankle_pitch = 0.1f;   /* 踝 pitch：右 joint 10 +，左 joint 4 − */
+volatile float g_bias_balance_hip_pitch   = 0.0f;   /* 髋 pitch：右 joint 6 +，左 joint 0 − */
+volatile float g_bias_balance_ankle_pitch = 0.0f;   /* 踝 pitch：右 joint 10 +，左 joint 4 − */
 
 /* 冻结快照：前倾指令生效前抓的那一帧，冻结期间原样回放给 Nano */
 static float frozen_joint_position[PROTOCOL_NUM_JOINTS];
@@ -236,8 +236,11 @@ static void apply_position_targets(const RobotCommandPayload *command)
 
     for (index = 0U; index < 6U; ++index) {
         float target = motor_direction_target(index, command->joint_target[index]);
-         if(index == 0U) {
-            target = target + 0.1f;
+        // if(index == 0U) {
+        //     target = target - 0.1f;
+        // }
+        if(index == 4U) {
+        target = target - 0.1f;
         }
         g_debug_motor_target[index] = target;
         Motor_limitCtrl_float(
@@ -254,8 +257,11 @@ static void apply_position_targets(const RobotCommandPayload *command)
         float target = motor_direction_target(
             protocol_index,
             command->joint_target[protocol_index]);
-         if(index == 0U) {
-            target = target - 0.1f;
+        // if(index == 0U) {
+        //     target = target + 0.1f;
+        // }
+        if(index == 4U) {
+        target = target + 0.1f;
         }
         g_debug_motor_target[protocol_index] = target;
         Motor_limitCtrl_float(
