@@ -40,9 +40,9 @@ static uint32_t lean_last_ms;
  * 加进翻转名单（{0,4,6,10}），这里会变成同向叠加，必须一起改。
  * 左右腿是 mirror 装配，所以偏置反号：左腿 +bias，右腿 −bias。
  * 单位 rad（0.0175 rad ≈ 1°），可正可负，0 表示不加。
- * 直接改这两个量（ST-Link Live Expressions / 调试器），下一帧生效。 */
-volatile float g_bias_hip_roll   = -0.03f;   /* 髋 roll：左 joint 1，右 joint 7 */
-volatile float g_bias_ankle_roll = -0.03f;   /* 踝 roll：左 joint 5，右 joint 11 */
+ * 直接改这两个量（ST-Link Live Expressions / 调试器），下一帧生效。 防打脚*/
+volatile float g_bias_hip_roll   = -0.00f;   /* 髋 roll：左 joint 1，右 joint 7 */
+volatile float g_bias_ankle_roll = -0.00f;   /* 踝 roll：左 joint 5，右 joint 11 */
 
 /* ---- 髋 pitch 偏置（隐藏给 Nano 的"后仰"）----
  * 和 roll 偏置同一套路：motor_direction_target() 在发给电机前加上，
@@ -213,10 +213,10 @@ static bool command_targets_are_valid(const RobotCommandPayload *command)
 static void apply_position_targets(const RobotCommandPayload *command)
 {
     static const float base_kp[6] = {
-        35.0f, 30.0f, 20.0f, 35.0f, 15.0f, 12.0f
+        35.0f, 30.0f, 20.0f, 35.0f, 30.0f, 12.0f
     };
     static const float base_kd[6] = {
-        1.5f, 1.2f, 1.0f, 1.5f, 0.8f, 0.7f
+        1.5f, 1.2f, 1.0f, 1.5f, 1.6f, 0.7f
     };
     static const uint8_t left_motor_id[6] = {
         l_leg_pitch, l_leg_roll, l_leg_yaw,
@@ -365,8 +365,6 @@ void JetsonRobotBridge_ProcessCommand(void)
         ((command.command_flags & COMMAND_ESTOP) != 0U)) {
         if (g_debug_jetson_control_active != 0U) {
           ++g_debug_estop_trip_count;
-
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
             HAL_NVIC_SystemReset();
         }
         return;
