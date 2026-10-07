@@ -303,6 +303,8 @@ uint8_t JetsonRobotBridge_SendState(void)
     fault_flags = motor_status_fault;
     mode_flags = motor_status_mode;
     imu_flags = imu_data_ready;
+    state.command_rx_count = g_debug_command_count;
+    state.system_control_cycle = system_control_cycle;
     __enable_irq();
 
     state.timestamp_us = HAL_GetTick() * 1000U;
