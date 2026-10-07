@@ -83,7 +83,7 @@ volatile uint8_t g_debug_feedback_freeze;
 extern volatile uint32_t system_control_cycle;
  
 const float kp_add = 1.2f;
-const float kd_add = 1.2f;
+const float kd_add = 1.5f;
 static float limit_gain_scale(float scale)
 {
     if (!isfinite(scale) || (scale < 0.0f)) {
@@ -237,10 +237,17 @@ static void apply_position_targets(const RobotCommandPayload *command)
     for (index = 0U; index < 6U; ++index) {
         float target = motor_direction_target(index, command->joint_target[index]);
         // if(index == 0U) {
-        //     target = target - 0.1f;
+        //     target = target - 0.05f;
+        // }
+
+        // if(index == 1U) {
+        //     target = target * 1.1f;
+        // }
+        // if(index == 5U) {
+        //     target = target * 1.1f;
         // }
         if(index == 4U) {
-        target = target - 0.1f;
+        target = target - 0.08f;
         }
         g_debug_motor_target[index] = target;
         Motor_limitCtrl_float(
@@ -258,10 +265,17 @@ static void apply_position_targets(const RobotCommandPayload *command)
             protocol_index,
             command->joint_target[protocol_index]);
         // if(index == 0U) {
-        //     target = target + 0.1f;
+        //     target = target + 0.05f;
+        // }
+
+        // if(index == 1U) {
+        //     target = target * 1.1f;
+        // }
+        // if(index == 5U) {
+        //     target = target * 1.1f;
         // }
         if(index == 4U) {
-        target = target + 0.1f;
+        target = target + 0.08f;
         }
         g_debug_motor_target[protocol_index] = target;
         Motor_limitCtrl_float(
