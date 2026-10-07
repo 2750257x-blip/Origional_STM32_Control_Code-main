@@ -54,6 +54,10 @@ typedef struct {
     float gyro_rad_s[3];
     float orientation_wxyz[4];
     uint32_t status_flags;
+    /* CRC-valid COMMAND frames received, including commands not applied. */
+    uint32_t command_rx_count;
+    /* Calls that submitted all 12 leg targets to the motor CAN buses. */
+    uint32_t system_control_cycle;
 } RobotStatePayload;
 
 typedef struct {
@@ -85,7 +89,7 @@ extern volatile uint32_t g_debug_crc_error_count;
 #pragma pack(pop)
 
 _Static_assert(sizeof(ProtocolHeader) == 8U, "ProtocolHeader wire size must be 8 bytes");
-_Static_assert(sizeof(RobotStatePayload) == 144U, "RobotStatePayload wire size must be 144 bytes");
+_Static_assert(sizeof(RobotStatePayload) == 152U, "RobotStatePayload wire size must be 152 bytes");
 _Static_assert(sizeof(RobotCommandPayload) == 64U, "RobotCommandPayload wire size must be 64 bytes");
 _Static_assert(sizeof(ActionRequestPayload) == 5U, "ActionRequestPayload wire size must be 5 bytes");
 _Static_assert(sizeof(ActionStatusPayload) == 6U, "ActionStatusPayload wire size must be 6 bytes");
