@@ -234,6 +234,8 @@ static void apply_position_targets(const RobotCommandPayload *command)
 
     (void)lean_offset_step();
 
+    /* Nano applies the 0.08-rad ankle trim only to forward walking targets.
+     * Keep zero-speed and card-action targets free of a fixed trim here. */
     for (index = 0U; index < 6U; ++index) {
         float target = motor_direction_target(index, command->joint_target[index]);
         // if(index == 0U) {
@@ -246,9 +248,6 @@ static void apply_position_targets(const RobotCommandPayload *command)
         // if(index == 5U) {
         //     target = target * 1.1f;
         // }
-        if(index == 4U) {
-        target = target - 0.08f;
-        }
         g_debug_motor_target[index] = target;
         Motor_limitCtrl_float(
             &hfdcan2,
@@ -274,9 +273,6 @@ static void apply_position_targets(const RobotCommandPayload *command)
         // if(index == 5U) {
         //     target = target * 1.1f;
         // }
-        if(index == 4U) {
-        target = target + 0.08f;
-        }
         g_debug_motor_target[protocol_index] = target;
         Motor_limitCtrl_float(
             &hfdcan1,
