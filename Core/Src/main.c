@@ -40,7 +40,7 @@
 #include "jetson_protocol.h"
 #include "jetson_usb_cdc.h"
 #include "QRCode_State.h"
-#include "lcd_spi_154.h"
+// #include "lcd_spi_154.h"  // LCD hardware is not used on this robot.
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -173,7 +173,7 @@ void ROBOT_TEST_IMU(void);
 void ROBOT_TEST_UART(void);
 void ROBOT_TEST_INIT(void);
 
-void LCD_State_Machine(void);
+// void LCD_State_Machine(void);
 
 /* USER CODE END PFP */
 
@@ -233,7 +233,7 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM4_Init();
   MX_USART2_UART_Init();
-  MX_SPI6_Init();
+  // MX_SPI6_Init();  // SPI6 was only used by the disconnected LCD.
   /* USER CODE BEGIN 2 */
   JetsonRobotBridge_Init();
   HAL_Delay(200);       // 电机上电延时
@@ -254,7 +254,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);    // 启动PWM信号输出（舵机控制）
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);    // 启动PWM信号输出（舵机控制）
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);    // 启动PWM信号输出（舵机控制）
-  //SPI_LCD_Init();			// SPI LCD屏幕初始化
+  // SPI_LCD_Init();  // LCD 已停用；所有运行时显示调用也必须保持注释。
   motor_enable();
   HAL_Delay(100);
   HAL_TIM_Base_Start_IT(&htim3);
@@ -657,8 +657,8 @@ void ROBOT_RHAND(void)
   switch (action_step)
   {
     case 0:                                   /* 举右手，保持 3.2 s */
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(10, 10, "Mode : RHAND");
+      // LCD_ClearRect(10, 10, 240, 24);
+      // LCD_DisplayText(10, 10, "Mode : RHAND");
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
       Action_Step_Begin();
       action_step = 1U;
@@ -668,8 +668,8 @@ void ROBOT_RHAND(void)
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(0, 10, "Mode : IDLE");
+      // LCD_ClearRect(10, 10, 240, 24);
+      // LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
       break;
   }
@@ -680,8 +680,8 @@ void ROBOT_LHAND(void)
   switch (action_step)
   {
     case 0:                                   /* 举左手，保持 3.2 s */
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(10, 10, "Mode : LHAND");
+      // LCD_ClearRect(10, 10, 240, 24);
+      // LCD_DisplayText(10, 10, "Mode : LHAND");
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       Action_Step_Begin();
       action_step = 1U;
@@ -691,8 +691,8 @@ void ROBOT_LHAND(void)
       if (!Action_Step_Elapsed(3500U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(0, 10, "Mode : IDLE");
+      // LCD_ClearRect(10, 10, 240, 24);
+      // LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
       break;
   }
@@ -703,8 +703,8 @@ void ROBOT_HEAD(void)
   switch (action_step)
   {
     case 0:                                   /* 摇头，来回 5 次后回中 */
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(10, 10, "Mode : HEAD");
+      // LCD_ClearRect(10, 10, 240, 24);
+      // LCD_DisplayText(10, 10, "Mode : HEAD");
       Servo_SetAngle(&htim1, TIM_CHANNEL_3, 0);
       Action_Step_Begin();
       action_step = 1U;
@@ -748,8 +748,8 @@ void ROBOT_HEAD(void)
     case 6:
       if (!Action_Step_Elapsed(200U)) return;
       robot_state = ROBOT_STATE_IDLE;
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(0, 10, "Mode : IDLE");
+      // LCD_ClearRect(10, 10, 240, 24);
+      // LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
       break;
   }
@@ -768,8 +768,8 @@ void ROBOT_BOTHH(void)
   switch (action_step)
   {
     case 0:                                   /* 举双手，保持 3.2 s */
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(10, 10, "Mode : BOTHH");
+      // LCD_ClearRect(10, 10, 240, 24);
+      // LCD_DisplayText(10, 10, "Mode : BOTHH");
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 30);
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 150);
       Action_Step_Begin();
@@ -781,8 +781,8 @@ void ROBOT_BOTHH(void)
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
-      LCD_ClearRect(10, 10, 240, 24);
-      LCD_DisplayText(0, 10, "Mode : IDLE");
+      // LCD_ClearRect(10, 10, 240, 24);
+      // LCD_DisplayText(0, 10, "Mode : IDLE");
       action_count_finished++;
       break;
   }
@@ -790,12 +790,12 @@ void ROBOT_BOTHH(void)
 
 void ROBOT_CROSS(void)
 {
-  LCD_ClearRect(10, 10, 240, 24);
-  LCD_DisplayText(10, 10, "Mode : CROSS");
+  // LCD_ClearRect(10, 10, 240, 24);
+  // LCD_DisplayText(10, 10, "Mode : CROSS");
   Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
   robot_state = ROBOT_STATE_IDLE;
-  LCD_ClearRect(10, 10, 240, 24);
-  LCD_DisplayText(0, 10, "Mode : IDLE");
+  // LCD_ClearRect(10, 10, 240, 24);
+  // LCD_DisplayText(0, 10, "Mode : IDLE");
 }
 
 void ROBOT_TEST_IMU(void)
@@ -913,56 +913,56 @@ void BUTTON_CHANGE(void)
         }
       }
       if(button_pressed == 0) {  // 按键0：正常模式
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : IDLE");
+        // LCD_ClearRect(10, 10, 240, 24);
+        // LCD_DisplayText(10, 10, "Mode : IDLE");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
       else if(button_pressed == 1) {  // 按键1：设零位
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : RESET");
+        // LCD_ClearRect(10, 10, 240, 24);
+        // LCD_DisplayText(10, 10, "Mode : RESET");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
       else if(button_pressed == 2) {  // 按键2：测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST");
+        // LCD_ClearRect(10, 10, 240, 24);
+        // LCD_DisplayText(10, 10, "Mode : TEST");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
       else if(button_pressed == 3) { //动作测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_ACTION");
+        // LCD_ClearRect(10, 10, 240, 24);
+        // LCD_DisplayText(10, 10, "Mode : TEST_ACTION");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
       }
       else if(button_pressed == 4) { // IMU测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_IMU");
+        // LCD_ClearRect(10, 10, 240, 24);
+        // LCD_DisplayText(10, 10, "Mode : TEST_IMU");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
       }
       else if(button_pressed == 5) { // UART测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_UART");
+        // LCD_ClearRect(10, 10, 240, 24);
+        // LCD_DisplayText(10, 10, "Mode : TEST_UART");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
       }
       else if(button_pressed == 6) { // INIT测试
-        LCD_ClearRect(10, 10, 240, 24);
-        LCD_DisplayText(10, 10, "Mode : TEST_INIT");
+        // LCD_ClearRect(10, 10, 240, 24);
+        // LCD_DisplayText(10, 10, "Mode : TEST_INIT");
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
@@ -1037,15 +1037,15 @@ void Close_All_Old_Func(void)
 void LCD_State_Machine(void)
 {
   /* ready 是12位掩码：bit0~5 右腿(FDCAN1)，bit6~11 左腿(FDCAN2)，按位拆开显示，1=该电机已上报 */
-  LCD_DisplayBinary(118, 34, motor_status_ready >>6, 6);          /* 右腿 bit5~bit0 */
-  LCD_DisplayBinary(118, 58, motor_status_ready, 6);     /* 左腿 bit11~bit6 */
-  LCD_DisplayHex(166, 82, motor_status_mode, 4);
-  LCD_DisplayHex(166, 106, motor_status_fault, 4);
-  LCD_DisplayHex(142, 130, (uint16_t)imu_data_ready, 2);
-  LCD_DisplayNumber(94, 154, (uint32_t)action_count, 2);
-  LCD_DisplayNumber(142, 154, (uint32_t)action_count_finished, 2);
-  LCD_DisplayNumber(118, 178, (uint32_t)imu_warning, 4);
-  LCD_DisplayNumber(94, 202, imu_data_count, 8);
+  // LCD_DisplayBinary(118, 34, motor_status_ready >>6, 6);          /* 右腿 bit5~bit0 */
+  // LCD_DisplayBinary(118, 58, motor_status_ready, 6);     /* 左腿 bit11~bit6 */
+  // LCD_DisplayHex(166, 82, motor_status_mode, 4);
+  // LCD_DisplayHex(166, 106, motor_status_fault, 4);
+  // LCD_DisplayHex(142, 130, (uint16_t)imu_data_ready, 2);
+  // LCD_DisplayNumber(94, 154, (uint32_t)action_count, 2);
+  // LCD_DisplayNumber(142, 154, (uint32_t)action_count_finished, 2);
+  // LCD_DisplayNumber(118, 178, (uint32_t)imu_warning, 4);
+  // LCD_DisplayNumber(94, 202, imu_data_count, 8);
 }
 
 void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, float rangle5, float rangle6, float langle1, float langle2, float langle3, float langle4, float langle5, float langle6, uint8_t Goto_time)
