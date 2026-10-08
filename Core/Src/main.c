@@ -147,8 +147,9 @@ volatile uint8_t uart_start2 = 0;
 volatile uint8_t uart_ready2 = 0;
 
 
-extern float kp_add;
-extern float kd_add;
+/* Local startup/Action_Goto gains only; Jetson commands carry their own PD. */
+static const float kp_add = 1.5f;
+static const float kd_add = 2.0f;
 
 /* USER CODE END PV */
 

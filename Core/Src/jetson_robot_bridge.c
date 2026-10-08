@@ -13,7 +13,6 @@
 
 #define JETSON_COMMAND_WATCHDOG_MS 100U
 #define IMU_FRESHNESS_MS           50U
-#define MAX_GAIN_SCALE             2.0f
 
 static uint32_t last_applied_command_count;
 
@@ -82,19 +81,6 @@ volatile uint8_t g_debug_feedback_freeze;
 
 extern volatile uint32_t system_control_cycle;
  
-const float kp_add = 1.5f;
-const float kd_add = 2.0;
-static float limit_gain_scale(float scale)
-{
-    if (!isfinite(scale) || (scale < 0.0f)) {
-        return 0.0f;
-    }
-    if (scale > MAX_GAIN_SCALE) {
-        return MAX_GAIN_SCALE;
-    }
-    return scale;
-}
-
 static void stop_all_motors(void)
 {
     uint8_t index;
@@ -203,7 +189,10 @@ static bool command_targets_are_valid(const RobotCommandPayload *command)
     uint8_t index;
 
     for (index = 0U; index < PROTOCOL_NUM_JOINTS; ++index) {
-        if (!isfinite(command->joint_target[index])) {
+        if (!isfinite(command->joint_target[index]) ||
+            !isfinite(command->kp[index]) || !isfinite(command->kd[index]) ||
+            (command->kp[index] < 0.0f) || (command->kp[index] > KP_MAX) ||
+            (command->kd[index] < 0.0f) || (command->kd[index] > KD_MAX)) {
             return false;
         }
     }
@@ -212,12 +201,6 @@ static bool command_targets_are_valid(const RobotCommandPayload *command)
 
 static void apply_position_targets(const RobotCommandPayload *command)
 {
-    static const float base_kp[6] = {
-        35.0f, 30.0f, 20.0f, 35.0f, 30.0f, 12.0f
-    };
-    static const float base_kd[6] = {
-        1.5f, 1.2f, 1.0f, 1.5f, 1.6f, 0.7f
-    };
     static const uint8_t left_motor_id[6] = {
         l_leg_pitch, l_leg_roll, l_leg_yaw,
         l_knee_pitch, l_ankle_pitch, l_ankle_roll
@@ -226,10 +209,6 @@ static void apply_position_targets(const RobotCommandPayload *command)
         r_leg_pitch, r_leg_roll, r_leg_yaw,
         r_knee_pitch, r_ankle_pitch, r_ankle_roll
     };
-    // float kp_scale = limit_gain_scale(command->kp_scale);
-    // float kd_scale = limit_gain_scale(command->kd_scale);
-    float kp_scale = 1.0f;
-    float kd_scale = 1.0f;
     uint8_t index;
 
     (void)lean_offset_step();
@@ -254,8 +233,8 @@ static void apply_position_targets(const RobotCommandPayload *command)
             left_motor_id[index],
             target,
             0.0f,         
-            base_kp[index] * kp_add * kp_scale,
-            base_kd[index] * kd_add * kd_scale);
+            command->kp[index],
+            command->kd[index]);
     }
 
     for (index = 0U; index < 6U; ++index) {
@@ -279,8 +258,8 @@ static void apply_position_targets(const RobotCommandPayload *command)
             right_motor_id[index],
             target,
             0.0f,
-            base_kp[index] * kp_add * kp_scale,
-            base_kd[index] * kd_add * kd_scale);
+            command->kp[protocol_index],
+            command->kd[protocol_index]);
     }
     system_control_cycle ++;
 }

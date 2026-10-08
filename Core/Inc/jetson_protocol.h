@@ -63,8 +63,9 @@ typedef struct {
 typedef struct {
     uint32_t timestamp_us;
     float joint_target[PROTOCOL_NUM_JOINTS];
-    float kp_scale;
-    float kd_scale;
+    /* Absolute gains, in the same left/right joint order as joint_target. */
+    float kp[PROTOCOL_NUM_JOINTS];
+    float kd[PROTOCOL_NUM_JOINTS];
     uint32_t command_flags;
 } RobotCommandPayload;
 
@@ -90,7 +91,7 @@ extern volatile uint32_t g_debug_crc_error_count;
 
 _Static_assert(sizeof(ProtocolHeader) == 8U, "ProtocolHeader wire size must be 8 bytes");
 _Static_assert(sizeof(RobotStatePayload) == 152U, "RobotStatePayload wire size must be 152 bytes");
-_Static_assert(sizeof(RobotCommandPayload) == 64U, "RobotCommandPayload wire size must be 64 bytes");
+_Static_assert(sizeof(RobotCommandPayload) == 152U, "RobotCommandPayload wire size must be 152 bytes");
 _Static_assert(sizeof(ActionRequestPayload) == 5U, "ActionRequestPayload wire size must be 5 bytes");
 _Static_assert(sizeof(ActionStatusPayload) == 6U, "ActionStatusPayload wire size must be 6 bytes");
 
