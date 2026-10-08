@@ -76,6 +76,8 @@ extern volatile uint16_t motor_status_mode;
 extern volatile uint16_t motor_fault_test;
 extern uint8_t motor_status_buf[48];
 
+extern volatile float motor_torque_float[12];
+
 // 函数声明
 void EL05_Motor_Enable(FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id);      // 电机使能
 void EL05_Motor_Stop(FDCAN_HandleTypeDef *hfdcan, uint8_t motor_id);        // 电机停止
