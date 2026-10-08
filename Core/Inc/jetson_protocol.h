@@ -12,6 +12,11 @@
 #define PROTOCOL_MSG_COMMAND        2U
 #define PROTOCOL_MSG_ACTION_REQUEST 3U
 #define PROTOCOL_MSG_ACTION_STATUS  4U
+#define PROTOCOL_MSG_STARTUP_CONTROL 5U
+
+/* One-byte STARTUP_CONTROL payload; independent of motor COMMAND/watchdog. */
+#define STARTUP_ARM                 (1U << 0)
+#define STARTUP_CARD_READY          (1U << 1)
 
 #define ACTION_STATUS_ACCEPTED      1U
 #define ACTION_STATUS_DONE          2U
@@ -36,6 +41,8 @@
 #define STATE_IMU_VALID             (1UL << 2)
 #define STATE_ENCODERS_VALID        (1UL << 3)
 #define STATE_COMMAND_FRESH         (1UL << 4)
+#define STATE_START_BUTTON          (1UL << 5)
+#define STATE_STARTUP_ACTIVE        (1UL << 6)
 
 #pragma pack(push, 1)
 typedef struct {
@@ -86,6 +93,8 @@ extern volatile uint16_t g_debug_command_sequence;
 extern volatile uint32_t g_debug_command_count;
 extern volatile uint32_t g_debug_command_received_ms;
 extern volatile uint32_t g_debug_crc_error_count;
+/* Receipt tick of the startup control most recently taken by the main loop. */
+extern volatile uint32_t g_debug_startup_received_ms;
 
 #pragma pack(pop)
 
@@ -100,6 +109,7 @@ void Protocol_RxBytes(const uint8_t *data, uint16_t length, uint32_t now_ms);
 bool Protocol_GetFreshCommand(uint32_t now_ms, uint32_t maximum_age_ms, RobotCommandPayload *output);
 bool Protocol_CommandIsFresh(uint32_t now_ms, uint32_t maximum_age_ms);
 bool Protocol_TakeActionRequest(ActionRequestPayload *output);
+bool Protocol_TakeStartupControl(uint8_t *flags);
 uint16_t Protocol_EncodeState(const RobotStatePayload *state, uint8_t *output, uint16_t capacity);
 uint16_t Protocol_EncodeActionStatus(const ActionStatusPayload *status, uint8_t *output, uint16_t capacity);
 uint32_t Protocol_GetCrcErrorCount(void);

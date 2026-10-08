@@ -17,6 +17,9 @@ static volatile uint32_t latest_command_ms;
 static volatile bool command_available;
 static ActionRequestPayload pending_action;
 static volatile bool action_available;
+static uint8_t pending_startup_flags;
+static uint32_t pending_startup_ms;
+static volatile bool startup_available;
 static volatile uint32_t crc_error_count;
 static uint16_t tx_sequence;
 
@@ -26,6 +29,7 @@ volatile uint16_t g_debug_command_sequence;
 volatile uint32_t g_debug_command_count;
 volatile uint32_t g_debug_command_received_ms;
 volatile uint32_t g_debug_crc_error_count;
+volatile uint32_t g_debug_startup_received_ms;
 
 static uint16_t crc16_ccitt(const uint8_t *data, uint16_t length)
 {
@@ -87,6 +91,14 @@ static void process_complete_frame(uint32_t now_ms)
             memcpy(&pending_action, &rx_frame[HEADER_SIZE], sizeof(pending_action));
             action_available = true;
         }
+    } else if ((header.message_type == PROTOCOL_MSG_STARTUP_CONTROL) &&
+               (header.payload_length == 1U)) {
+        uint8_t flags = rx_frame[HEADER_SIZE];
+        if ((flags & (uint8_t)~(STARTUP_ARM | STARTUP_CARD_READY)) == 0U) {
+            pending_startup_flags = flags;
+            pending_startup_ms = now_ms;
+            startup_available = true;
+        }
     }
 }
 
@@ -97,6 +109,9 @@ void Protocol_Init(void)
     command_available = false;
     memset(&pending_action, 0, sizeof(pending_action));
     action_available = false;
+    pending_startup_flags = 0U;
+    pending_startup_ms = 0U;
+    startup_available = false;
     latest_command_ms = 0U;
     crc_error_count = 0U;
     tx_sequence = 0U;
@@ -106,6 +121,7 @@ void Protocol_Init(void)
     g_debug_command_count = 0U;
     g_debug_command_received_ms = 0U;
     g_debug_crc_error_count = 0U;
+    g_debug_startup_received_ms = 0U;
 }
 
 void Protocol_RxBytes(const uint8_t *data, uint16_t length, uint32_t now_ms)
@@ -187,6 +203,24 @@ bool Protocol_TakeActionRequest(ActionRequestPayload *output)
     if (available) {
         *output = pending_action;
         action_available = false;
+    }
+    __enable_irq();
+    return available;
+}
+
+bool Protocol_TakeStartupControl(uint8_t *flags)
+{
+    bool available;
+
+    if (flags == NULL) {
+        return false;
+    }
+    __disable_irq();
+    available = startup_available;
+    if (available) {
+        *flags = pending_startup_flags;
+        g_debug_startup_received_ms = pending_startup_ms;
+        startup_available = false;
     }
     __enable_irq();
     return available;

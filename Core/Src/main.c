@@ -641,7 +641,9 @@ void ROBOT_Comms_Service(void)
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   // }
   if(imu_warning >=2 && imu_warning <=100) {
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET); 
+  if (g_debug_startup_active == 0U) {
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+  }
   imu_change_to_request();                // 切到请求模式才能配置
   HAL_Delay(20);
   imu_set_active_mode_delay(10);          // 100Hz (10ms)
@@ -649,7 +651,9 @@ void ROBOT_Comms_Service(void)
   imu_save_parameters();                  // 保存到IMU内部Flash
   HAL_Delay(20);
   imu_change_to_active();                 // 切换到主动模式
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+  if (g_debug_startup_active == 0U) {
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+  }
   }
 }
 
@@ -892,6 +896,9 @@ void ROBOT_TEST_INIT(void)
 
 void BUTTON_CHANGE(void)
 {
+      if (JetsonRobotBridge_ServiceStartupButton()) {
+        return;
+      }
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET) {
         if(motor_torque_float[1]<0.5f && motor_torque_float[0]>-0.5f)
         {

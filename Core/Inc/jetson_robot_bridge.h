@@ -2,6 +2,7 @@
 #define JETSON_ROBOT_BRIDGE_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /*
  * Protocol joint order (model coordinates):
@@ -12,6 +13,8 @@
  */
 void JetsonRobotBridge_Init(void);
 void JetsonRobotBridge_ProcessCommand(void);
+/* True while startup owns PC2/PA3; skip the legacy torque LED display. */
+bool JetsonRobotBridge_ServiceStartupButton(void);
 uint8_t JetsonRobotBridge_SendState(void);
 void JetsonRobotBridge_OnUsbReceive(uint8_t *data, uint32_t length);
 
@@ -38,5 +41,7 @@ extern volatile uint32_t g_debug_estop_trip_count;
 extern volatile uint32_t g_debug_invalid_command_count;
 extern volatile float   g_debug_pose_lean_applied;
 extern volatile uint8_t g_debug_feedback_freeze;
+extern volatile uint8_t g_debug_startup_active;
+extern volatile uint8_t g_debug_start_button;
 
 #endif

@@ -13,8 +13,16 @@
 
 #define JETSON_COMMAND_WATCHDOG_MS 100U
 #define IMU_FRESHNESS_MS           50U
+#define STARTUP_HEARTBEAT_TIMEOUT_MS 1000U
+#define START_BUTTON_DEBOUNCE_MS     30U
 
 static uint32_t last_applied_command_count;
+static uint32_t startup_last_received_ms;
+static uint32_t start_button_changed_ms;
+static bool start_button_raw;
+static bool start_button_stable;
+static bool start_button_wait_release;
+static bool startup_card_ready;
 
 /* ---- 反馈前向预测滤波 ---- */
 #define SMOOTHING_ALPHA         0.0f     /* 0~1: 越大越跟随预测值 */
@@ -78,8 +86,76 @@ volatile uint32_t g_debug_estop_trip_count;
 volatile uint32_t g_debug_invalid_command_count;
 volatile float   g_debug_pose_lean_applied;
 volatile uint8_t g_debug_feedback_freeze;
+volatile uint8_t g_debug_startup_active;
+volatile uint8_t g_debug_start_button;
 
 extern volatile uint32_t system_control_cycle;
+
+static void clear_startup(void)
+{
+    g_debug_startup_active = 0U;
+    g_debug_start_button = 0U;
+    startup_card_ready = false;
+    /* PA3 is active LOW. Only startup transitions write the readiness LED. */
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+}
+
+bool JetsonRobotBridge_ServiceStartupButton(void)
+{
+    uint32_t now_ms = HAL_GetTick();
+    uint8_t flags;
+    bool pressed;
+
+    if (Protocol_TakeStartupControl(&flags)) {
+        startup_last_received_ms = g_debug_startup_received_ms;
+        if (((flags & STARTUP_ARM) == 0U) ||
+            ((g_debug_jetson_control_active != 0U) &&
+             Protocol_CommandIsFresh(now_ms, JETSON_COMMAND_WATCHDOG_MS)) ||
+            ((uint32_t)(now_ms - startup_last_received_ms) >= STARTUP_HEARTBEAT_TIMEOUT_MS)) {
+            if (g_debug_startup_active != 0U) {
+                clear_startup();
+            }
+        } else {
+            if (g_debug_startup_active == 0U) {
+                pressed = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET;
+                start_button_raw = pressed;
+                start_button_stable = pressed;
+                start_button_wait_release = pressed;
+                start_button_changed_ms = now_ms;
+                g_debug_start_button = 0U;
+                g_debug_startup_active = 1U;
+            }
+            startup_card_ready = (flags & STARTUP_CARD_READY) != 0U;
+        }
+    }
+
+    if (g_debug_startup_active == 0U) {
+        return false;
+    }
+    if ((uint32_t)(now_ms - startup_last_received_ms) >= STARTUP_HEARTBEAT_TIMEOUT_MS) {
+        clear_startup();
+        return false;
+    }
+
+    pressed = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET;
+    if (pressed != start_button_raw) {
+        start_button_raw = pressed;
+        start_button_changed_ms = now_ms;
+    }
+    if ((pressed != start_button_stable) &&
+        ((uint32_t)(now_ms - start_button_changed_ms) >= START_BUTTON_DEBOUNCE_MS)) {
+        start_button_stable = pressed;
+        if (!pressed) {
+            start_button_wait_release = false;
+        } else if (!start_button_wait_release) {
+            /* First valid press stays latched even after release/readiness changes. */
+            g_debug_start_button = 1U;
+        }
+    }
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3,
+                     startup_card_ready ? GPIO_PIN_RESET : GPIO_PIN_SET);
+    return true;
+}
  
 static void stop_all_motors(void)
 {
@@ -312,6 +388,14 @@ void JetsonRobotBridge_Init(void)
     g_debug_watchdog_trip_count = 0U;
     g_debug_estop_trip_count = 0U;
     g_debug_invalid_command_count = 0U;
+    g_debug_startup_active = 0U;
+    g_debug_start_button = 0U;
+    startup_last_received_ms = 0U;
+    start_button_changed_ms = 0U;
+    start_button_raw = false;
+    start_button_stable = false;
+    start_button_wait_release = false;
+    startup_card_ready = false;
     memset(target_position, 0, sizeof(target_position));
     lean_target = 0.0f;
     lean_applied = 0.0f;
@@ -375,6 +459,9 @@ void JetsonRobotBridge_ProcessCommand(void)
         return;
     }
 
+    if (g_debug_startup_active != 0U) {
+        clear_startup();
+    }
     if (g_debug_jetson_control_active == 0U) {
         motor_enable();
         g_debug_jetson_control_active = 1U;
@@ -470,6 +557,12 @@ uint8_t JetsonRobotBridge_SendState(void)
     }
     if (Protocol_CommandIsFresh(HAL_GetTick(), JETSON_COMMAND_WATCHDOG_MS)) {
         state.status_flags |= STATE_COMMAND_FRESH;
+    }
+    if (g_debug_startup_active != 0U) {
+        state.status_flags |= STATE_STARTUP_ACTIVE;
+        if (g_debug_start_button != 0U) {
+            state.status_flags |= STATE_START_BUTTON;
+        }
     }
 
     return JetsonUsbCdc_SendState(&state);
