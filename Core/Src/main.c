@@ -148,8 +148,8 @@ volatile uint8_t uart_ready2 = 0;
 
 
 /* Local startup/Action_Goto gains only; Jetson commands carry their own PD. */
-static const float kp_add = 1.5f;
-static const float kd_add = 2.0f;
+static const float kp_add = 1.2f;
+static const float kd_add = 1.5f;
 
 /* USER CODE END PV */
 
@@ -284,7 +284,7 @@ int main(void)
   }
 
   //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-  Action_Goto(0.15f, -0.20f, 0.0f, -0.30f, -0.15f, -0.20f, -0.15f, 0.20f, 0.0f, 0.30f, 0.15f, 0.20f, 50);
+  Action_Goto(0.15f, -0.14f, 0.0f, -0.30f, -0.15f, -0.14f, -0.15f, 0.14f, 0.0f, 0.30f, 0.15f, 0.14f, 50);
   //Action_Goto(0.15f, 0.05f, 0.0f, -0.30f, -0.15f, 0.0f, -0.15f, -0.05f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   system_control_warning = 0;
   /* USER CODE END 2 */
@@ -896,233 +896,32 @@ void ROBOT_TEST_INIT(void)
 
 void BUTTON_CHANGE(void)
 {
+      if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
+        //抬左腿
+        Action_Goto(-0.05f, -0.25f, 0.0f, -0.2f, -0.2f, -0.25f, 0.05f, 0.25f, 0.0f, 0.2f, 0.2f, 0.25f, 25);
+        Action_Goto(1.3f, 0.0f, 0.0f, -1.6f, -0.1f, 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.5f, 50);
+      }
+
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
+        //抬右腿
+        Action_Goto(-0.05f, -0.25f, 0.0f, -0.2f, -0.2f, -0.25f, 0.05f, 0.25f, 0.0f, 0.2f, 0.2f, 0.25f, 25);
+        Action_Goto(0.0f, -0.4f, 0.0f, 0.0f, 0.0f, -0.5f,-1.3f, 0.0f, 0.0f, 1.6f, 0.1f, 0.0f,  50);
+      }
+
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1) == GPIO_PIN_SET){
+        
+      }
+
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
+        Action_Goto(-0.05f, -0.25f, 0.0f, -0.2f, -0.2f, -0.25f, 0.05f, 0.25f, 0.0f, 0.2f, 0.2f, 0.25f, 50);
+      }
+
       if (JetsonRobotBridge_ServiceStartupButton()) {
         return;
       }
       if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET) {
-        if(motor_torque_float[1]<0.5f && motor_torque_float[0]>-0.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.0f && motor_torque_float[0]>-1.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.5f && motor_torque_float[0]>-1.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<2.0f && motor_torque_float[0]>-2.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<2.5f && motor_torque_float[0]>-2.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<3.0f && motor_torque_float[0]>-3.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-      }
-
-
-      if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
-        if(motor_torque_float[1]<0.5f && motor_torque_float[1]>-0.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.0f && motor_torque_float[1]>-1.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.5f && motor_torque_float[1]>-1.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<2.0f && motor_torque_float[1]>-2.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<2.5f && motor_torque_float[1]>-2.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<3.0f && motor_torque_float[1]>-3.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-      }
-
-      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
-        if(motor_torque_float[1]<0.5f && motor_torque_float[2]>-0.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.0f && motor_torque_float[2]>-1.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.5f && motor_torque_float[2]>-1.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<2.0f && motor_torque_float[2]>-2.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<2.5f && motor_torque_float[2]>-2.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<3.0f && motor_torque_float[2]>-3.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-      }
-
-      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1) == GPIO_PIN_SET){
-        if(motor_torque_float[1]<0.5f && motor_torque_float[3]>-0.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.0f && motor_torque_float[3]>-1.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.5f && motor_torque_float[3]>-1.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<2.0f && motor_torque_float[3]>-2.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<2.5f && motor_torque_float[3]>-2.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<3.0f && motor_torque_float[3]>-3.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-      }
-
-      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
-        if(motor_torque_float[1]<0.5f && motor_torque_float[4]>-0.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.0f && motor_torque_float[4]>-1.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<1.5f && motor_torque_float[4]>-1.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-        }
-        else if(motor_torque_float[1]<2.0f && motor_torque_float[4]>-2.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<2.5f && motor_torque_float[4]>-2.5f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else if(motor_torque_float[1]<3.0f && motor_torque_float[4]>-3.0f)
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
-        else
-        {
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-        }
+        
       }
 }
 
@@ -1185,35 +984,37 @@ void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, flo
   while(Goto_number < Goto_time) {
     if(Goto_ready){
       Goto_ready = 0;
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, leg_control[0], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, leg_control[1], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, leg_control[2], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, leg_control[3], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, leg_control[4], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, leg_control[5], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, leg_control[6], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, leg_control[7], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, leg_control[8], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, leg_control[9], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, leg_control[0], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, leg_control[1], 0.0f, 30.0f*kp_add, 1.2f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, leg_control[2], 0.0f, 20.0f*kp_add, 1.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, leg_control[3], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, leg_control[4], 0.0f, 30.0f*kp_add, 1.6f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, leg_control[5], 0.0f, 12.0f*kp_add, 0.7f*kd_add);
+
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, leg_control[6], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, leg_control[7], 0.0f, 30.0f*kp_add, 1.2f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, leg_control[8], 0.0f, 20.0f*kp_add, 1.0f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, leg_control[9], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 30.0f*kp_add, 1.6f*kd_add);
+      EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 12.0f*kp_add, 0.7f*kd_add);
     }
   }
     HAL_TIM_Base_Stop_IT(&htim4);
     __HAL_TIM_SET_COUNTER(&htim4, 0);
     __HAL_TIM_CLEAR_FLAG(&htim4, TIM_FLAG_UPDATE);
-    EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, rangle1, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, rangle2, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, rangle3, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, rangle4, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, rangle5, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, rangle6, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, langle1, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, langle2, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, langle3, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, langle4, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, langle5, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, langle6, 0.0f, 40.0f*kp_add, 2.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, rangle1, 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, rangle2, 0.0f, 30.0f*kp_add, 1.2f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, rangle3, 0.0f, 20.0f*kp_add, 1.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, rangle4, 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, rangle5, 0.0f, 30.0f*kp_add, 1.6f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, rangle6, 0.0f, 12.0f*kp_add, 0.7f*kd_add);
+
+    EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, langle1, 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, langle2, 0.0f, 30.0f*kp_add, 1.2f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, langle3, 0.0f, 20.0f*kp_add, 1.0f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, langle4, 0.0f, 35.0f*kp_add, 1.5f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, langle5, 0.0f, 30.0f*kp_add, 1.6f*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, langle6, 0.0f, 12.0f*kp_add, 0.7f*kd_add);
     Goto_ready = 0;
     Goto_number = 0;
 }

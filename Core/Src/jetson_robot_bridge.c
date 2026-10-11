@@ -30,8 +30,8 @@ static bool startup_card_ready;
 #define MAX_PREDICT_DT_MS       50U      /* 预测dt上限 (ms)，防止卡顿瞬间跳变 */
 
 /* ---- 前倾 20° + 反馈冻结 ---- */
-#define LEAN_ANGLE_RAD   -0.1f    /* 20° = 0.3491 rad，模型坐标系，叠加在站立姿态的髋 pitch 上 */
-#define LEAN_RAMP_RATE   1.0f       /* rad/s：20° 约 290 ms 爬到位，避免站立时阶跃冲击 */
+#define LEAN_ANGLE_RAD   -0.3f    /* 20° = 0.3491 rad，模型坐标系，叠加在站立姿态的髋 pitch 上 */
+#define LEAN_RAMP_RATE   3.0f       /* rad/s：20° 约 290 ms 爬到位，避免站立时阶跃冲击 */
 
 static float    lean_target;        /* 0 或 LEAN_ANGLE_RAD */
 static float    lean_applied;       /* 带斜率地跟随 lean_target */
