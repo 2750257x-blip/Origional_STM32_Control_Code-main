@@ -37,7 +37,6 @@
 #include "imu.h"
 #include "protocol.h"
 #include "jetson_robot_bridge.h"
-#include "action_goto.h"
 #include "jetson_protocol.h"
 #include "jetson_usb_cdc.h"
 #include "QRCode_State.h"
@@ -53,9 +52,9 @@ typedef enum
     ROBOT_STATE_LHAND,          // 举左手
     ROBOT_STATE_BOTHH,          // 举双手
     ROBOT_STATE_HEAD,           // 摇头
-    ROBOT_STATE_LLEG,           // BUTTON_CHANGE left-leg pose
-    ROBOT_STATE_RLEG,           // BUTTON_CHANGE right-leg pose
-    ROBOT_STATE_LEG_STAND,      // GPIOC13 standing pose
+    ROBOT_STATE_LLEG,
+    ROBOT_STATE_RLEG,
+    ROBOT_STATE_LEG_STAND,
     ROBOT_STATE_CROSS,           // 跨棍
     ROBOT_STATE_RESET,            // 测试状态
     ROBOT_STATE_TEST_IMU,         // 测试状态
@@ -125,25 +124,21 @@ float leg_control[12] = {0.0f};
 float walklength1 = 0.005f;
 float walklength2 = 0.005f;
 
-static ActionGoto goto_motion;
-static uint32_t goto_last_send_ms;
+/* Nonblocking interpolation stays in the existing main-loop state machine. */
+static float goto_start[12], goto_target[12];
+static uint32_t goto_start_ms, goto_last_send_ms, goto_duration_ms;
+static uint8_t goto_busy, local_watchdog_required, local_release_pending;
+static uint32_t local_release_ms;
 volatile uint8_t g_debug_local_leg_active = 0U;
-static uint8_t local_watchdog_required = 0U;
-static uint8_t local_release_pending = 0U;
-static uint32_t local_release_ms = 0U;
-
-/* Exact BUTTON_CHANGE/PC13 poses, in the original raw motor order. */
+/* Original PA4 / PC0 / PC13 poses, right motors followed by left motors. */
 static const float leg_stand_pose[12] = {
-    -0.05f, -0.25f, 0.0f, -0.2f, -0.2f, -0.25f,
-     0.05f,  0.25f, 0.0f,  0.2f,  0.2f,  0.25f
+    -.05f, -.25f, 0, -.2f, -.2f, -.25f, .05f, .25f, 0, .2f, .2f, .25f
 };
 static const float left_lift_pose[12] = {
-    1.3f, 0.0f, 0.0f, -1.6f, -0.1f, 0.0f,
-    0.0f, 0.4f, 0.0f,  0.0f,  0.0f, 0.5f
+    1.3f, 0, 0, -1.6f, -.1f, 0, 0, .4f, 0, 0, 0, .5f
 };
 static const float right_lift_pose[12] = {
-     0.0f, -0.4f, 0.0f, 0.0f, 0.0f, -0.5f,
-    -1.3f,  0.0f, 0.0f, 1.6f, 0.1f,  0.0f
+    0, -.4f, 0, 0, 0, -.5f, -1.3f, 0, 0, 1.6f, .1f, 0
 };
 
 volatile uint32_t action_tick = 0;        /* TIM2 中断里累加 */
@@ -183,6 +178,7 @@ void Robot_State_Machine(void);
 void BUTTON_CHANGE(void);
 void Close_All_Old_Func(void);
 void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, float rangle5, float rangle6, float langle1, float langle2, float langle3, float langle4, float langle5, float langle6, uint8_t Goto_time);
+
 static void Action_Goto_Service(void);
 static void Action_Goto_Cancel(void);
 static void ROBOT_LEG(void);
@@ -452,10 +448,8 @@ void Robot_State_Machine(void)
       case ROBOT_STATE_LLEG:
       case ROBOT_STATE_RLEG:
       case ROBOT_STATE_LEG_STAND:
-      {
         ROBOT_LEG();
         break;
-      }
       // 状态5：重置
       case ROBOT_STATE_RESET:
       {
@@ -563,8 +557,8 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
   switch (request->action_id) {                                // 根据上位机请求的动作 ID 切换状态机
     case 1U: next_state = ROBOT_STATE_LHAND; break;
     case 2U: next_state = ROBOT_STATE_RHAND; break;
-    case ACTION_ID_LEFT_LEG: next_state = ROBOT_STATE_LLEG; break;
-    case ACTION_ID_RIGHT_LEG: next_state = ROBOT_STATE_RLEG; break;
+    case 3U: next_state = ROBOT_STATE_LLEG; break;
+    case 4U: next_state = ROBOT_STATE_RLEG; break;
     case 5U: next_state = ROBOT_STATE_BOTHH; break;
     case 6U: next_state = ROBOT_STATE_HEAD; break;
     default:
@@ -860,7 +854,7 @@ void ROBOT_CROSS(void)
     Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50U);
     action_step = 1U;
-  } else if (goto_motion.busy == 0U) {
+  } else if (goto_busy == 0U) {
     Action_Goto_Cancel();
     robot_state = ROBOT_STATE_IDLE;
   }
@@ -959,40 +953,21 @@ void ROBOT_TEST_INIT(void)
 
 void BUTTON_CHANGE(void)
 {
-  /* Debounced rising edges prevent a held button from restarting the trajectory. */
-  static uint8_t raw_buttons = 0U;
-  static uint8_t stable_buttons = 0U;
-  static uint32_t changed_ms[3] = {0U};
-  uint32_t now_ms = HAL_GetTick();
-  uint8_t buttons = 0U;
-  uint8_t pressed = 0U;
-  if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) buttons |= 1U;
-  if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET) buttons |= 2U;
-  if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET) buttons |= 4U;
-  for (uint8_t i = 0U; i < 3U; ++i) {
-    uint8_t mask = (uint8_t)(1U << i);
-    if ((buttons & mask) != (raw_buttons & mask)) {
-      raw_buttons = (uint8_t)((raw_buttons & ~mask) | (buttons & mask));
-      changed_ms[i] = now_ms;
-    }
-    if ((buttons & mask) != (stable_buttons & mask) &&
-        (uint32_t)(now_ms - changed_ms[i]) >= 30U) {
-      stable_buttons = (uint8_t)((stable_buttons & ~mask) | (buttons & mask));
-      pressed |= (uint8_t)(buttons & mask);
-    }
-  }
-  if (robot_state == ROBOT_STATE_IDLE && g_debug_local_leg_active == 0U &&
-      active_action_status != ACTION_STATUS_ACCEPTED) {
-    if ((pressed & 1U) != 0U) {
-      robot_state = ROBOT_STATE_LLEG;
-    } else if ((pressed & 2U) != 0U) {
-      robot_state = ROBOT_STATE_RLEG;
-    } else if ((pressed & 4U) != 0U) {
-      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
-      robot_state = ROBOT_STATE_LEG_STAND;
-    }
-  }
+  static uint8_t previous_buttons;
+  uint8_t buttons = (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET ? 1U : 0U)
+                  | (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET ? 2U : 0U)
+                  | (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET ? 4U : 0U);
+  uint8_t pressed = buttons & ~previous_buttons;
+  previous_buttons = buttons;
   (void)JetsonRobotBridge_ServiceStartupButton();
+  if (robot_state != ROBOT_STATE_IDLE || g_debug_local_leg_active != 0U ||
+      active_action_status == ACTION_STATUS_ACCEPTED) return;
+  if (pressed & 1U) robot_state = ROBOT_STATE_LLEG;
+  else if (pressed & 2U) robot_state = ROBOT_STATE_RLEG;
+  else if (pressed & 4U) {
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
+    robot_state = ROBOT_STATE_LEG_STAND;
+  }
 }
 
 void Close_All_Old_Func(void)
@@ -1041,9 +1016,11 @@ void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, flo
   if (Goto_time == 0U) return;
   const float target[12] = {rangle1, rangle2, rangle3, rangle4, rangle5, rangle6,
                            langle1, langle2, langle3, langle4, langle5, langle6};
-  ActionGoto_Begin(&goto_motion, leg_control, target, Goto_time, HAL_GetTick());
-  goto_last_send_ms = HAL_GetTick();
-  g_debug_local_leg_active = 1U;
+  memcpy(goto_start, leg_control, sizeof(goto_start));
+  memcpy(goto_target, target, sizeof(goto_target));
+  goto_start_ms = goto_last_send_ms = HAL_GetTick();
+  goto_duration_ms = (uint32_t)Goto_time * 20U;
+  goto_busy = g_debug_local_leg_active = 1U;
   local_watchdog_required = g_debug_jetson_control_active;
 }
 
@@ -1055,98 +1032,78 @@ static void Action_Goto_Pose(const float target[12], uint8_t steps)
 
 static void Action_Goto_Cancel(void)
 {
-  ActionGoto_Cancel(&goto_motion);
+  goto_busy = 0U;
   g_debug_local_leg_active = 0U;
   local_watchdog_required = 0U;
   local_release_pending = 0U;
 }
 
-/* One bounded motor batch per 20 ms; holds are serviced the same way. */
+/* One motor batch every 20 ms, including the three-second hold. */
 static void Action_Goto_Service(void)
 {
-  if (g_debug_local_leg_active == 0U) return;
   uint32_t now_ms = HAL_GetTick();
-  uint8_t changed = ActionGoto_Service(&goto_motion, now_ms);
-  if (changed != 0U) {
-    memcpy(leg_control, goto_motion.position, sizeof(leg_control));
-  }
-  if (changed == 0U && (uint32_t)(now_ms - goto_last_send_ms) < ACTION_GOTO_STEP_MS) return;
+  if (g_debug_local_leg_active == 0U || (uint32_t)(now_ms - goto_last_send_ms) < 20U) return;
   goto_last_send_ms = now_ms;
-  static const float kp[6] = {35.0f, 30.0f, 20.0f, 35.0f, 30.0f, 12.0f};
-  static const float kd[6] = {1.5f, 1.2f, 1.0f, 1.5f, 1.6f, 0.7f};
+  if (goto_busy != 0U) {
+    uint32_t elapsed = now_ms - goto_start_ms;
+    float fraction = (float)elapsed / (float)goto_duration_ms;
+    for (uint8_t i = 0U; i < 12U; ++i)
+      leg_control[i] = elapsed >= goto_duration_ms ? goto_target[i]
+                      : goto_start[i] + (goto_target[i] - goto_start[i]) * fraction;
+    if (elapsed >= goto_duration_ms) goto_busy = 0U;
+  }
+  static const float kp[6] = {35, 30, 20, 35, 30, 12};
+  static const float kd[6] = {1.5f, 1.2f, 1, 1.5f, 1.6f, .7f};
   for (uint8_t i = 0U; i < 6U; ++i) {
-    EL05_Motor_Ctrl(&hfdcan1, (uint8_t)(r_leg_pitch + i), 0.0f, leg_control[i],
-                    0.0f, kp[i] * kp_add, kd[i] * kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, (uint8_t)(l_leg_pitch + i), 0.0f, leg_control[i + 6U],
-                    0.0f, kp[i] * kp_add, kd[i] * kd_add);
-    g_debug_motor_target[i] = leg_control[i + 6U];
-    g_debug_motor_target[i + 6U] = leg_control[i];
+    EL05_Motor_Ctrl(&hfdcan1, (uint8_t)(r_leg_pitch + i), 0, leg_control[i], 0, kp[i]*kp_add, kd[i]*kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, (uint8_t)(l_leg_pitch + i), 0, leg_control[i+6U], 0, kp[i]*kp_add, kd[i]*kd_add);
   }
   system_control_cycle++;
-  /* Startup trajectories have no action state to release their ownership. */
-  if (goto_motion.busy == 0U && robot_state == ROBOT_STATE_IDLE) {
-    /* Keep the standing target through DONE and the host's next COMMAND. */
-    if (local_release_pending == 0U ||
-        (local_release_pending == 2U &&
-         (uint32_t)(now_ms - local_release_ms) >= 100U)) {
-      Action_Goto_Cancel();
-    }
-  }
-}
-
-static void Snapshot_Leg_Control(void)
-{
-  uint8_t feedback[48];
-  __disable_irq();
-  memcpy(feedback, motor_status_buf, sizeof(feedback));
-  __enable_irq();
-  for (uint8_t i = 0U; i < 12U; ++i) {
-    leg_control[i] = (float)((feedback[i * 4U] << 8) | feedback[i * 4U + 1U])
-                    * (P_MAX - P_MIN) / 65535.0f + P_MIN;
-  }
+  /* Give the host time to receive DONE and seed its next target from feedback. */
+  if (goto_busy == 0U && robot_state == ROBOT_STATE_IDLE &&
+      (local_release_pending == 0U || (local_release_pending == 2U &&
+       (uint32_t)(now_ms - local_release_ms) >= 100U))) Action_Goto_Cancel();
 }
 
 static void ROBOT_LEG(void)
 {
   switch (action_step) {
-    case 0:
-      Snapshot_Leg_Control();
-      Action_Goto_Pose(leg_stand_pose, robot_state == ROBOT_STATE_LEG_STAND ? 50U : 25U);
-      action_step = 1U;
+    case 0: {
+      uint8_t feedback[48];
+      __disable_irq();
+      memcpy(feedback, motor_status_buf, sizeof(feedback));
+      __enable_irq();
+      for (uint8_t i = 0U; i < 12U; ++i)
+        leg_control[i] = (float)((feedback[i*4U] << 8) | feedback[i*4U+1U])
+                        * (P_MAX - P_MIN) / 65535.0f + P_MIN;
+      Action_Goto_Pose(leg_stand_pose, 25U);
+      action_step = robot_state == ROBOT_STATE_LEG_STAND ? 4U : 1U;
       break;
+    }
     case 1:
-      if (goto_motion.busy != 0U) return;
-      if (robot_state == ROBOT_STATE_LEG_STAND) {
-        Action_Step_Begin();
-        action_step = 5U;
-      } else {
-        Action_Goto_Pose(robot_state == ROBOT_STATE_LLEG ? left_lift_pose : right_lift_pose, 50U);
-        action_step = 2U;
-      }
+      if (goto_busy != 0U) return;
+      Action_Goto_Pose(robot_state == ROBOT_STATE_LLEG ? left_lift_pose : right_lift_pose, 50U);
+      action_step = 2U;
       break;
     case 2:
-      if (goto_motion.busy != 0U) return;
-      Action_Step_Begin();
+      if (goto_busy != 0U) return;
+      goto_start_ms = HAL_GetTick(); /* Start the hold after the lift endpoint is sent. */
       action_step = 3U;
       break;
     case 3:
-      if (!Action_Step_Elapsed(3000U)) return;
-      /* The user-specified GPIOC13 standing pose, after three seconds at the endpoint. */
-      Action_Goto_Pose(leg_stand_pose, 50U);
+      if ((uint32_t)(HAL_GetTick() - goto_start_ms) < 3000U) return;
+      Action_Goto_Pose(leg_stand_pose, 25U); /* 25 x 20 ms = 0.5 s return. */
       action_step = 4U;
       break;
     case 4:
-      if (goto_motion.busy != 0U) return;
+      if (goto_busy != 0U) return;
       Action_Step_Begin();
       action_step = 5U;
       break;
     case 5:
       if (!Action_Step_Elapsed(300U)) return;
-      if (active_action_status == ACTION_STATUS_ACCEPTED) {
-        local_release_pending = 1U;
-      } else {
-        Action_Goto_Cancel();
-      }
+      if (active_action_status == ACTION_STATUS_ACCEPTED) local_release_pending = 1U;
+      else Action_Goto_Cancel();
       robot_state = ROBOT_STATE_IDLE;
       action_count_finished++;
       break;
@@ -1176,8 +1133,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     imu_data_count_copy = imu_data_count;
   }
 
-  /* TIM4 no longer mutates leg targets; interpolation runs in the main loop. */
-
+  /* Goto interpolation is serviced by the main loop. */
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)

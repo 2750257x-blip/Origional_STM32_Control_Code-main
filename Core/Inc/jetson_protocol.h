@@ -24,10 +24,10 @@
 #define ACTION_STATUS_INVALID       4U
 #define ACTION_STATUS_FAILED        5U
 
-/* 1/2 = left/right hand, 3/4 = BUTTON_CHANGE left/right leg poses,
- * 5/6 = both hands/head. 7/8 are card lean/restore events. */
-#define ACTION_ID_LEFT_LEG          3U
-#define ACTION_ID_RIGHT_LEG         4U
+/* action_id 空间：7/8 是姿态事件，不参与 Robot_State_Machine。
+ * 1-6 是六种图形，3/4（正方形/菱形）调用原按钮左右抬腿姿态。
+ * 上位机那边 Jetson_orin_nano_code/humanoid_jetson_deploy/protocol.py 里
+ * 就是 ACTION_CARD_TILT = 7 / ACTION_CARD_RESTORE = 8，两边必须一致。 */
 #define ACTION_ID_LEAN              7U
 #define ACTION_ID_RESTORE           8U
 
