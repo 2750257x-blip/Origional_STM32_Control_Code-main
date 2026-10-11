@@ -37,6 +37,7 @@
 #include "imu.h"
 #include "protocol.h"
 #include "jetson_robot_bridge.h"
+#include "action_goto.h"
 #include "jetson_protocol.h"
 #include "jetson_usb_cdc.h"
 #include "QRCode_State.h"
@@ -52,6 +53,9 @@ typedef enum
     ROBOT_STATE_LHAND,          // 举左手
     ROBOT_STATE_BOTHH,          // 举双手
     ROBOT_STATE_HEAD,           // 摇头
+    ROBOT_STATE_LLEG,           // BUTTON_CHANGE left-leg pose
+    ROBOT_STATE_RLEG,           // BUTTON_CHANGE right-leg pose
+    ROBOT_STATE_LEG_STAND,      // GPIOC13 standing pose
     ROBOT_STATE_CROSS,           // 跨棍
     ROBOT_STATE_RESET,            // 测试状态
     ROBOT_STATE_TEST_IMU,         // 测试状态
@@ -121,9 +125,26 @@ float leg_control[12] = {0.0f};
 float walklength1 = 0.005f;
 float walklength2 = 0.005f;
 
-volatile uint8_t Goto_ready = 0;
-volatile uint8_t Goto_number = 0;
-volatile float Goto_walklength[12] = {0.0f};
+static ActionGoto goto_motion;
+static uint32_t goto_last_send_ms;
+volatile uint8_t g_debug_local_leg_active = 0U;
+static uint8_t local_watchdog_required = 0U;
+static uint8_t local_release_pending = 0U;
+static uint32_t local_release_ms = 0U;
+
+/* Exact BUTTON_CHANGE/PC13 poses, in the original raw motor order. */
+static const float leg_stand_pose[12] = {
+    -0.05f, -0.25f, 0.0f, -0.2f, -0.2f, -0.25f,
+     0.05f,  0.25f, 0.0f,  0.2f,  0.2f,  0.25f
+};
+static const float left_lift_pose[12] = {
+    1.3f, 0.0f, 0.0f, -1.6f, -0.1f, 0.0f,
+    0.0f, 0.4f, 0.0f,  0.0f,  0.0f, 0.5f
+};
+static const float right_lift_pose[12] = {
+     0.0f, -0.4f, 0.0f, 0.0f, 0.0f, -0.5f,
+    -1.3f,  0.0f, 0.0f, 1.6f, 0.1f,  0.0f
+};
 
 volatile uint32_t action_tick = 0;        /* TIM2 中断里累加 */
 static uint8_t    action_step = 0;        /* 当前动作走到第几步 */
@@ -162,6 +183,9 @@ void Robot_State_Machine(void);
 void BUTTON_CHANGE(void);
 void Close_All_Old_Func(void);
 void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, float rangle5, float rangle6, float langle1, float langle2, float langle3, float langle4, float langle5, float langle6, uint8_t Goto_time);
+static void Action_Goto_Service(void);
+static void Action_Goto_Cancel(void);
+static void ROBOT_LEG(void);
 
 void ROBOT_Comms_Service(void);
 void ROBOT_RHAND(void);
@@ -284,7 +308,6 @@ int main(void)
   }
 
   //Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-  Action_Goto(0.15f, -0.14f, 0.0f, -0.30f, -0.15f, -0.14f, -0.15f, 0.14f, 0.0f, 0.30f, 0.15f, 0.14f, 50);
   //Action_Goto(0.15f, 0.05f, 0.0f, -0.30f, -0.15f, 0.0f, -0.15f, -0.05f, 0.0f, 0.30f, 0.15f, 0.00f, 50);
   system_control_warning = 0;
   /* USER CODE END 2 */
@@ -293,6 +316,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   imu_set_zero();                         // 清零四元数，使复位后姿态归零
   HAL_Delay(500);
+  Action_Goto(0.15f, -0.14f, 0.0f, -0.30f, -0.15f, -0.14f, -0.15f, 0.14f, 0.0f, 0.30f, 0.15f, 0.14f, 50);
   uint32_t loop_last_ms = HAL_GetTick();
   while (1)
   {
@@ -307,6 +331,7 @@ int main(void)
     }
     /* 通信和腿部闭环与当前动作无关，每轮都先服务一次 */
     ROBOT_Comms_Service();
+    Action_Goto_Service();
     Robot_State_Machine();
     //LCD_State_Machine();
     /* USER CODE END WHILE */
@@ -424,6 +449,13 @@ void Robot_State_Machine(void)
         ROBOT_HEAD();
         break;
       }
+      case ROBOT_STATE_LLEG:
+      case ROBOT_STATE_RLEG:
+      case ROBOT_STATE_LEG_STAND:
+      {
+        ROBOT_LEG();
+        break;
+      }
       // 状态5：重置
       case ROBOT_STATE_RESET:
       {
@@ -502,7 +534,8 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
       request->action_id == ACTION_ID_RESTORE) {
     if (request->event_id == 0U ||
         g_debug_jetson_control_active == 0U ||
-        !Protocol_CommandIsFresh(HAL_GetTick(), 100U)) {
+        !Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
+        g_debug_local_leg_active != 0U) {
       Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_BUSY);
       return;
     }
@@ -528,10 +561,12 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
   }
 
   switch (request->action_id) {                                // 根据上位机请求的动作 ID 切换状态机
-    case 1U: next_state = ROBOT_STATE_LHAND;action_count++; break;
-    case 2U: next_state = ROBOT_STATE_RHAND; action_count++; break;
-    case 5U: next_state = ROBOT_STATE_BOTHH; action_count++; break;
-    case 6U: next_state = ROBOT_STATE_HEAD; action_count++; break;
+    case 1U: next_state = ROBOT_STATE_LHAND; break;
+    case 2U: next_state = ROBOT_STATE_RHAND; break;
+    case ACTION_ID_LEFT_LEG: next_state = ROBOT_STATE_LLEG; break;
+    case ACTION_ID_RIGHT_LEG: next_state = ROBOT_STATE_RLEG; break;
+    case 5U: next_state = ROBOT_STATE_BOTHH; break;
+    case 6U: next_state = ROBOT_STATE_HEAD; break;
     default:
       Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_INVALID);
       return;
@@ -540,7 +575,8 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
     Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_INVALID);
     return;
   }
-  if (robot_state != ROBOT_STATE_IDLE || g_debug_jetson_control_active == 0U ||
+  if (robot_state != ROBOT_STATE_IDLE || g_debug_local_leg_active != 0U ||
+      g_debug_jetson_control_active == 0U ||
       !Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
       active_action_status == ACTION_STATUS_ACCEPTED) {                                  // 如果当前状态机不在空闲状态，或者上位机控制未激活，或者上位机命令不新鲜，或者当前动作还在执行中，返回忙碌状态
     Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_BUSY);
@@ -550,6 +586,7 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
   active_action_id = request->action_id;
   active_action_status = ACTION_STATUS_ACCEPTED;
   robot_state = next_state;
+  action_count++;
   Queue_Action_Status(active_event_id, active_action_id, active_action_status);
 }
 
@@ -558,14 +595,32 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
 void ROBOT_Comms_Service(void)
 {
   // 处理通过USB CDC收到并经过CRC校验的Nano关节目标
+  uint32_t invalid_command_count = g_debug_invalid_command_count;
   JetsonRobotBridge_ProcessCommand();
-  
+  if (g_debug_local_leg_active != 0U && g_debug_jetson_control_active != 0U) {
+    local_watchdog_required = 1U;
+  }
+  /* A local trajectory must never keep commanding motors after host loss. */
+  if (g_debug_local_leg_active != 0U &&
+      (invalid_command_count != g_debug_invalid_command_count ||
+       (local_watchdog_required != 0U &&
+        (!Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
+         g_debug_jetson_control_active == 0U)))) {
+    Action_Goto_Cancel();
+    robot_state = ROBOT_STATE_IDLE;
+    for (uint8_t i = 0U; i < 6U; ++i) {
+      EL05_Motor_Stop(&hfdcan1, (uint8_t)(r_leg_pitch + i));
+      EL05_Motor_Stop(&hfdcan2, (uint8_t)(l_leg_pitch + i));
+    }
+    g_debug_jetson_control_active = 0U;
+  }
 
   // 处理通过USB CDC收到的动作请求
   if (active_action_status == ACTION_STATUS_ACCEPTED) {
     if (!Protocol_CommandIsFresh(HAL_GetTick(), 100U) ||
         g_debug_jetson_control_active == 0U) {
       robot_state = ROBOT_STATE_IDLE;
+      Action_Goto_Cancel();
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
       Servo_SetAngle(&htim1, TIM_CHANNEL_3, 90);
@@ -586,6 +641,12 @@ void ROBOT_Comms_Service(void)
   }
   if (pending_action_status_valid != 0U &&
       JetsonUsbCdc_SendActionStatus(&pending_action_status) == USBD_OK) {
+    if (local_release_pending == 1U &&
+        pending_action_status.event_id == active_event_id &&
+        pending_action_status.status == ACTION_STATUS_DONE) {
+      local_release_pending = 2U;
+      local_release_ms = HAL_GetTick();
+    }
     pending_action_status_valid = 0U;
   }
 
@@ -795,12 +856,14 @@ void ROBOT_BOTHH(void)
 
 void ROBOT_CROSS(void)
 {
-  // LCD_ClearRect(10, 10, 240, 24);
-  // LCD_DisplayText(10, 10, "Mode : CROSS");
-  Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-  robot_state = ROBOT_STATE_IDLE;
-  // LCD_ClearRect(10, 10, 240, 24);
-  // LCD_DisplayText(0, 10, "Mode : IDLE");
+  if (action_step == 0U) {
+    Action_Goto(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 50U);
+    action_step = 1U;
+  } else if (goto_motion.busy == 0U) {
+    Action_Goto_Cancel();
+    robot_state = ROBOT_STATE_IDLE;
+  }
 }
 
 void ROBOT_TEST_IMU(void)
@@ -896,33 +959,40 @@ void ROBOT_TEST_INIT(void)
 
 void BUTTON_CHANGE(void)
 {
-      if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) {
-        //抬左腿
-        Action_Goto(-0.05f, -0.25f, 0.0f, -0.2f, -0.2f, -0.25f, 0.05f, 0.25f, 0.0f, 0.2f, 0.2f, 0.25f, 25);
-        Action_Goto(1.3f, 0.0f, 0.0f, -1.6f, -0.1f, 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.5f, 50);
-      }
-
-      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET){
-        //抬右腿
-        Action_Goto(-0.05f, -0.25f, 0.0f, -0.2f, -0.2f, -0.25f, 0.05f, 0.25f, 0.0f, 0.2f, 0.2f, 0.25f, 25);
-        Action_Goto(0.0f, -0.4f, 0.0f, 0.0f, 0.0f, -0.5f,-1.3f, 0.0f, 0.0f, 1.6f, 0.1f, 0.0f,  50);
-      }
-
-      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1) == GPIO_PIN_SET){
-        
-      }
-
-      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); 
-        Action_Goto(-0.05f, -0.25f, 0.0f, -0.2f, -0.2f, -0.25f, 0.05f, 0.25f, 0.0f, 0.2f, 0.2f, 0.25f, 50);
-      }
-
-      if (JetsonRobotBridge_ServiceStartupButton()) {
-        return;
-      }
-      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_SET) {
-        
-      }
+  /* Debounced rising edges prevent a held button from restarting the trajectory. */
+  static uint8_t raw_buttons = 0U;
+  static uint8_t stable_buttons = 0U;
+  static uint32_t changed_ms[3] = {0U};
+  uint32_t now_ms = HAL_GetTick();
+  uint8_t buttons = 0U;
+  uint8_t pressed = 0U;
+  if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET) buttons |= 1U;
+  if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_SET) buttons |= 2U;
+  if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET) buttons |= 4U;
+  for (uint8_t i = 0U; i < 3U; ++i) {
+    uint8_t mask = (uint8_t)(1U << i);
+    if ((buttons & mask) != (raw_buttons & mask)) {
+      raw_buttons = (uint8_t)((raw_buttons & ~mask) | (buttons & mask));
+      changed_ms[i] = now_ms;
+    }
+    if ((buttons & mask) != (stable_buttons & mask) &&
+        (uint32_t)(now_ms - changed_ms[i]) >= 30U) {
+      stable_buttons = (uint8_t)((stable_buttons & ~mask) | (buttons & mask));
+      pressed |= (uint8_t)(buttons & mask);
+    }
+  }
+  if (robot_state == ROBOT_STATE_IDLE && g_debug_local_leg_active == 0U &&
+      active_action_status != ACTION_STATUS_ACCEPTED) {
+    if ((pressed & 1U) != 0U) {
+      robot_state = ROBOT_STATE_LLEG;
+    } else if ((pressed & 2U) != 0U) {
+      robot_state = ROBOT_STATE_RLEG;
+    } else if ((pressed & 4U) != 0U) {
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
+      robot_state = ROBOT_STATE_LEG_STAND;
+    }
+  }
+  (void)JetsonRobotBridge_ServiceStartupButton();
 }
 
 void Close_All_Old_Func(void)
@@ -968,55 +1038,119 @@ void LCD_State_Machine(void)
 
 void Action_Goto(float rangle1, float rangle2, float rangle3, float rangle4, float rangle5, float rangle6, float langle1, float langle2, float langle3, float langle4, float langle5, float langle6, uint8_t Goto_time)
 {
-  Goto_walklength[0] = (rangle1 - leg_control[0]) / Goto_time;
-  Goto_walklength[1] = (rangle2 - leg_control[1]) / Goto_time;
-  Goto_walklength[2] = (rangle3 - leg_control[2]) / Goto_time;
-  Goto_walklength[3] = (rangle4 - leg_control[3]) / Goto_time;
-  Goto_walklength[4] = (rangle5 - leg_control[4]) / Goto_time;
-  Goto_walklength[5] = (rangle6 - leg_control[5]) / Goto_time;
-  Goto_walklength[6] = (langle1 - leg_control[6]) / Goto_time;
-  Goto_walklength[7] = (langle2 - leg_control[7]) / Goto_time;
-  Goto_walklength[8] = (langle3 - leg_control[8]) / Goto_time;
-  Goto_walklength[9] = (langle4 - leg_control[9]) / Goto_time;
-  Goto_walklength[10] = (langle5 - leg_control[10]) / Goto_time;
-  Goto_walklength[11] = (langle6 - leg_control[11]) / Goto_time;
-  HAL_TIM_Base_Start_IT(&htim4); // 启动定时器中断（用于周期性任务）
-  while(Goto_number < Goto_time) {
-    if(Goto_ready){
-      Goto_ready = 0;
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, leg_control[0], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, leg_control[1], 0.0f, 30.0f*kp_add, 1.2f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, leg_control[2], 0.0f, 20.0f*kp_add, 1.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, leg_control[3], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, leg_control[4], 0.0f, 30.0f*kp_add, 1.6f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, leg_control[5], 0.0f, 12.0f*kp_add, 0.7f*kd_add);
+  if (Goto_time == 0U) return;
+  const float target[12] = {rangle1, rangle2, rangle3, rangle4, rangle5, rangle6,
+                           langle1, langle2, langle3, langle4, langle5, langle6};
+  ActionGoto_Begin(&goto_motion, leg_control, target, Goto_time, HAL_GetTick());
+  goto_last_send_ms = HAL_GetTick();
+  g_debug_local_leg_active = 1U;
+  local_watchdog_required = g_debug_jetson_control_active;
+}
 
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, leg_control[6], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, leg_control[7], 0.0f, 30.0f*kp_add, 1.2f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, leg_control[8], 0.0f, 20.0f*kp_add, 1.0f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, leg_control[9], 0.0f, 35.0f*kp_add, 1.5f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, leg_control[10], 0.0f, 30.0f*kp_add, 1.6f*kd_add);
-      EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, leg_control[11], 0.0f, 12.0f*kp_add, 0.7f*kd_add);
+static void Action_Goto_Pose(const float target[12], uint8_t steps)
+{
+  Action_Goto(target[0], target[1], target[2], target[3], target[4], target[5],
+              target[6], target[7], target[8], target[9], target[10], target[11], steps);
+}
+
+static void Action_Goto_Cancel(void)
+{
+  ActionGoto_Cancel(&goto_motion);
+  g_debug_local_leg_active = 0U;
+  local_watchdog_required = 0U;
+  local_release_pending = 0U;
+}
+
+/* One bounded motor batch per 20 ms; holds are serviced the same way. */
+static void Action_Goto_Service(void)
+{
+  if (g_debug_local_leg_active == 0U) return;
+  uint32_t now_ms = HAL_GetTick();
+  uint8_t changed = ActionGoto_Service(&goto_motion, now_ms);
+  if (changed != 0U) {
+    memcpy(leg_control, goto_motion.position, sizeof(leg_control));
+  }
+  if (changed == 0U && (uint32_t)(now_ms - goto_last_send_ms) < ACTION_GOTO_STEP_MS) return;
+  goto_last_send_ms = now_ms;
+  static const float kp[6] = {35.0f, 30.0f, 20.0f, 35.0f, 30.0f, 12.0f};
+  static const float kd[6] = {1.5f, 1.2f, 1.0f, 1.5f, 1.6f, 0.7f};
+  for (uint8_t i = 0U; i < 6U; ++i) {
+    EL05_Motor_Ctrl(&hfdcan1, (uint8_t)(r_leg_pitch + i), 0.0f, leg_control[i],
+                    0.0f, kp[i] * kp_add, kd[i] * kd_add);
+    EL05_Motor_Ctrl(&hfdcan2, (uint8_t)(l_leg_pitch + i), 0.0f, leg_control[i + 6U],
+                    0.0f, kp[i] * kp_add, kd[i] * kd_add);
+    g_debug_motor_target[i] = leg_control[i + 6U];
+    g_debug_motor_target[i + 6U] = leg_control[i];
+  }
+  system_control_cycle++;
+  /* Startup trajectories have no action state to release their ownership. */
+  if (goto_motion.busy == 0U && robot_state == ROBOT_STATE_IDLE) {
+    /* Keep the standing target through DONE and the host's next COMMAND. */
+    if (local_release_pending == 0U ||
+        (local_release_pending == 2U &&
+         (uint32_t)(now_ms - local_release_ms) >= 100U)) {
+      Action_Goto_Cancel();
     }
   }
-    HAL_TIM_Base_Stop_IT(&htim4);
-    __HAL_TIM_SET_COUNTER(&htim4, 0);
-    __HAL_TIM_CLEAR_FLAG(&htim4, TIM_FLAG_UPDATE);
-    EL05_Motor_Ctrl(&hfdcan1, r_leg_pitch, 0.0f, rangle1, 0.0f, 35.0f*kp_add, 1.5f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_leg_roll, 0.0f, rangle2, 0.0f, 30.0f*kp_add, 1.2f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_leg_yaw, 0.0f, rangle3, 0.0f, 20.0f*kp_add, 1.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_knee_pitch, 0.0f, rangle4, 0.0f, 35.0f*kp_add, 1.5f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_ankle_pitch, 0.0f, rangle5, 0.0f, 30.0f*kp_add, 1.6f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan1, r_ankle_roll, 0.0f, rangle6, 0.0f, 12.0f*kp_add, 0.7f*kd_add);
+}
 
-    EL05_Motor_Ctrl(&hfdcan2, l_leg_pitch, 0.0f, langle1, 0.0f, 35.0f*kp_add, 1.5f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_leg_roll, 0.0f, langle2, 0.0f, 30.0f*kp_add, 1.2f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_leg_yaw, 0.0f, langle3, 0.0f, 20.0f*kp_add, 1.0f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_knee_pitch, 0.0f, langle4, 0.0f, 35.0f*kp_add, 1.5f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_ankle_pitch, 0.0f, langle5, 0.0f, 30.0f*kp_add, 1.6f*kd_add);
-    EL05_Motor_Ctrl(&hfdcan2, l_ankle_roll, 0.0f, langle6, 0.0f, 12.0f*kp_add, 0.7f*kd_add);
-    Goto_ready = 0;
-    Goto_number = 0;
+static void Snapshot_Leg_Control(void)
+{
+  uint8_t feedback[48];
+  __disable_irq();
+  memcpy(feedback, motor_status_buf, sizeof(feedback));
+  __enable_irq();
+  for (uint8_t i = 0U; i < 12U; ++i) {
+    leg_control[i] = (float)((feedback[i * 4U] << 8) | feedback[i * 4U + 1U])
+                    * (P_MAX - P_MIN) / 65535.0f + P_MIN;
+  }
+}
+
+static void ROBOT_LEG(void)
+{
+  switch (action_step) {
+    case 0:
+      Snapshot_Leg_Control();
+      Action_Goto_Pose(leg_stand_pose, robot_state == ROBOT_STATE_LEG_STAND ? 50U : 25U);
+      action_step = 1U;
+      break;
+    case 1:
+      if (goto_motion.busy != 0U) return;
+      if (robot_state == ROBOT_STATE_LEG_STAND) {
+        Action_Step_Begin();
+        action_step = 5U;
+      } else {
+        Action_Goto_Pose(robot_state == ROBOT_STATE_LLEG ? left_lift_pose : right_lift_pose, 50U);
+        action_step = 2U;
+      }
+      break;
+    case 2:
+      if (goto_motion.busy != 0U) return;
+      Action_Step_Begin();
+      action_step = 3U;
+      break;
+    case 3:
+      if (!Action_Step_Elapsed(3000U)) return;
+      /* The user-specified GPIOC13 standing pose, after three seconds at the endpoint. */
+      Action_Goto_Pose(leg_stand_pose, 50U);
+      action_step = 4U;
+      break;
+    case 4:
+      if (goto_motion.busy != 0U) return;
+      Action_Step_Begin();
+      action_step = 5U;
+      break;
+    case 5:
+      if (!Action_Step_Elapsed(300U)) return;
+      if (active_action_status == ACTION_STATUS_ACCEPTED) {
+        local_release_pending = 1U;
+      } else {
+        Action_Goto_Cancel();
+      }
+      robot_state = ROBOT_STATE_IDLE;
+      action_count_finished++;
+      break;
+  }
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
@@ -1042,23 +1176,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     imu_data_count_copy = imu_data_count;
   }
 
-  if (htim->Instance == TIM4) {
-        Goto_ready = 1; // 设置数据就绪标志
-        Goto_number++; // 增加 goto 计数
-        leg_control[0] += Goto_walklength[0];                                
-        leg_control[1] += Goto_walklength[1];                               
-        leg_control[2] += Goto_walklength[2];                                  
-        leg_control[3] += Goto_walklength[3];            
-        leg_control[4] += Goto_walklength[4];                              
-        leg_control[5] += Goto_walklength[5];                            
+  /* TIM4 no longer mutates leg targets; interpolation runs in the main loop. */
 
-        leg_control[6] += Goto_walklength[6];                                
-        leg_control[7] += Goto_walklength[7];                                
-        leg_control[8] += Goto_walklength[8];                                   
-        leg_control[9] += Goto_walklength[9];             
-        leg_control[10] += Goto_walklength[10];                             
-        leg_control[11] += Goto_walklength[11];                               
-  }
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)

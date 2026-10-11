@@ -442,8 +442,9 @@ void JetsonRobotBridge_ProcessCommand(void)
 
     if (((command.command_flags & COMMAND_ENABLE) == 0U) ||
         ((command.command_flags & COMMAND_ESTOP) != 0U)) {
-        if (g_debug_jetson_control_active != 0U) {
+        if (g_debug_jetson_control_active != 0U || g_debug_local_leg_active != 0U) {
           ++g_debug_estop_trip_count;
+            stop_all_motors();
             HAL_NVIC_SystemReset();
         }
         return;
@@ -451,10 +452,11 @@ void JetsonRobotBridge_ProcessCommand(void)
 
     if (!command_targets_are_valid(&command)) {
         ++g_debug_invalid_command_count;
-        if (g_debug_jetson_control_active != 0U) {
+        if (g_debug_jetson_control_active != 0U || g_debug_local_leg_active != 0U) {
 
             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
             stop_all_motors();
+            g_debug_jetson_control_active = 0U;
         }
         return;
     }
@@ -466,8 +468,12 @@ void JetsonRobotBridge_ProcessCommand(void)
         motor_enable();
         g_debug_jetson_control_active = 1U;
     }
-    apply_position_targets(&command);
-    memcpy(target_position, command.joint_target, sizeof(target_position));
+    /* Validate every fresh COMMAND, including enable/ESTOP, while a local leg
+     * action owns the targets. Never let a walking target overwrite that action. */
+    if (g_debug_local_leg_active == 0U) {
+        apply_position_targets(&command);
+        memcpy(target_position, command.joint_target, sizeof(target_position));
+    }
 }
 
 uint8_t JetsonRobotBridge_SendState(void)
@@ -521,9 +527,11 @@ uint8_t JetsonRobotBridge_SendState(void)
 
         /* 3. 单帧限幅 —— 反馈偏离目标不超过限制值，过滤跳变 */
         float delta = corrected - target_position[index];
-        if (delta > FRAME_ANGLE_LIMIT)  delta = FRAME_ANGLE_LIMIT;
-        if (delta < -FRAME_ANGLE_LIMIT) delta = -FRAME_ANGLE_LIMIT;
-        corrected = target_position[index] + delta;
+        if (g_debug_local_leg_active == 0U) {
+            if (delta > FRAME_ANGLE_LIMIT)  delta = FRAME_ANGLE_LIMIT;
+            if (delta < -FRAME_ANGLE_LIMIT) delta = -FRAME_ANGLE_LIMIT;
+            corrected = target_position[index] + delta;
+        }
 
         state.joint_position[index] = corrected;
         state.joint_velocity[index] = raw_vel;

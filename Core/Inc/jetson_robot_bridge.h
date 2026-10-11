@@ -36,6 +36,8 @@ uint8_t JetsonRobotBridge_LeanSettled(void);
 /* Values after URDF-to-motor direction conversion, visible over ST-Link. */
 extern volatile float g_debug_motor_target[12];
 extern volatile uint8_t g_debug_jetson_control_active;
+/* Local interpolation/leg action owns the motors; COMMAND still stays live. */
+extern volatile uint8_t g_debug_local_leg_active;
 extern volatile uint32_t g_debug_watchdog_trip_count;
 extern volatile uint32_t g_debug_estop_trip_count;
 extern volatile uint32_t g_debug_invalid_command_count;
