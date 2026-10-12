@@ -135,10 +135,10 @@ static const float leg_stand_pose[12] = {
     -.05f, -.25f, 0, -.2f, -.2f, -.25f, .05f, .25f, 0, .2f, .2f, .25f
 };
 static const float left_lift_pose[12] = {
-    1.3f, 0, 0, -1.6f, -.1f, 0, 0, .4f, 0, 0, 0, .5f
+    1.3f, 0, 0, -1.6f, -.1f, 0, 0, .4f, 0, 0, -.02f, .5f
 };
 static const float right_lift_pose[12] = {
-    0, -.4f, 0, 0, 0, -.5f, -1.3f, 0, 0, 1.6f, .1f, 0
+    0, -.4f, 0, 0, .02f, -.5f, -1.3f, 0, 0, 1.6f, .1f, 0
 };
 
 volatile uint32_t action_tick = 0;        /* TIM2 中断里累加 */
@@ -719,7 +719,7 @@ void ROBOT_RHAND(void)
       break;
 
     case 1:
-      if (!Action_Step_Elapsed(3500U)) return;
+      if (!Action_Step_Elapsed(3200U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
       // LCD_ClearRect(10, 10, 240, 24);
@@ -742,7 +742,7 @@ void ROBOT_LHAND(void)
       break;
 
     case 1:
-      if (!Action_Step_Elapsed(3500U)) return;
+      if (!Action_Step_Elapsed(3200U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
       // LCD_ClearRect(10, 10, 240, 24);
@@ -831,7 +831,7 @@ void ROBOT_BOTHH(void)
       break;
 
     case 1:
-      if (!Action_Step_Elapsed(3500U)) return;
+      if (!Action_Step_Elapsed(3200U)) return;
       robot_state = ROBOT_STATE_IDLE;
       Servo_SetAngle(&htim1, TIM_CHANNEL_1, 150);
       Servo_SetAngle(&htim1, TIM_CHANNEL_2, 30);
@@ -1045,8 +1045,8 @@ static void Action_Goto_Service(void)
                       : goto_start[i] + (goto_target[i] - goto_start[i]) * fraction;
     if (elapsed >= goto_duration_ms) goto_busy = 0U;
   }
-  static const float kp[6] = {35, 30, 20, 35, 30, 12};
-  static const float kd[6] = {1.5f, 1.2f, 1, 1.5f, 1.6f, .7f};
+  static const float kp[6] = {35, 30, 20, 35, 30, 30};
+  static const float kd[6] = {1.5f, 1.2f, 1, 1.5f, 1.6f, 1.2f};
   for (uint8_t i = 0U; i < 6U; ++i) {
     EL05_Motor_Ctrl(&hfdcan1, (uint8_t)(r_leg_pitch + i), 0, leg_control[i], 0, kp[i]*kp_add, kd[i]*kd_add);
     EL05_Motor_Ctrl(&hfdcan2, (uint8_t)(l_leg_pitch + i), 0, leg_control[i+6U], 0, kp[i]*kp_add, kd[i]*kd_add);
@@ -1075,7 +1075,7 @@ static void ROBOT_LEG(void)
     }
     case 1:
       if (goto_busy != 0U) return;
-      Action_Goto_Pose(robot_state == ROBOT_STATE_LLEG ? left_lift_pose : right_lift_pose, 50U);
+      Action_Goto_Pose(robot_state == ROBOT_STATE_LLEG ? left_lift_pose : right_lift_pose, 75U);
       action_step = 2U;
       break;
     case 2:
@@ -1084,7 +1084,7 @@ static void ROBOT_LEG(void)
       action_step = 3U;
       break;
     case 3:
-      if ((uint32_t)(HAL_GetTick() - goto_start_ms) < 3000U) return;
+      if ((uint32_t)(HAL_GetTick() - goto_start_ms) < 2500U) return;
       Action_Goto_Pose(leg_stand_pose, 25U); /* 25 x 20 ms = 0.5 s return. */
       action_step = 4U;
       break;
