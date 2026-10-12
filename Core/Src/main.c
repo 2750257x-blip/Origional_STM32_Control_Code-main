@@ -318,7 +318,7 @@ int main(void)
   {
     BUTTON_CHANGE();
     /* 主循环最长间隔（诊断，见 g_main_loop_*）*/
-    {
+    {      
       uint32_t loop_now_ms = HAL_GetTick();
       uint32_t loop_dt_ms = loop_now_ms - loop_last_ms;
       loop_last_ms = loop_now_ms;
@@ -696,9 +696,6 @@ void ROBOT_Comms_Service(void)
   //   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
   // }
   if(imu_warning >=2 && imu_warning <=100) {
-  if (g_debug_startup_active == 0U) {
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-  }
   imu_change_to_request();                // 切到请求模式才能配置
   HAL_Delay(20);
   imu_set_active_mode_delay(10);          // 100Hz (10ms)
@@ -706,9 +703,6 @@ void ROBOT_Comms_Service(void)
   imu_save_parameters();                  // 保存到IMU内部Flash
   HAL_Delay(20);
   imu_change_to_active();                 // 切换到主动模式
-  if (g_debug_startup_active == 0U) {
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-  }
   }
 }
 
@@ -965,7 +959,6 @@ void BUTTON_CHANGE(void)
   if (pressed & 1U) robot_state = ROBOT_STATE_LLEG;
   else if (pressed & 2U) robot_state = ROBOT_STATE_RLEG;
   else if (pressed & 4U) {
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
     robot_state = ROBOT_STATE_LEG_STAND;
   }
 }
