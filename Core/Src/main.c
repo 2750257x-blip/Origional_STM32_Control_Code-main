@@ -135,10 +135,10 @@ static const float leg_stand_pose[12] = {
     -.05f, -.25f, 0, -.2f, -.2f, -.25f, .05f, .25f, 0, .2f, .2f, .25f
 };
 static const float left_lift_pose[12] = {
-    1.3f, 0, 0, -1.6f, -.1f, 0, 0, .4f, 0, 0, -.02f, .5f
+    1.0f, 0, 0, -1.6f, -.3f, 0, 0, .4f, 0, 0, -.02f, .5f
 };
 static const float right_lift_pose[12] = {
-    0, -.4f, 0, 0, .02f, -.5f, -1.3f, 0, 0, 1.6f, .1f, 0
+    0, -.4f, 0, 0, .02f, -.5f, -1.0f, 0, 0, 1.6f, .3f, 0
 };
 
 volatile uint32_t action_tick = 0;        /* TIM2 中断里累加 */
@@ -1045,8 +1045,8 @@ static void Action_Goto_Service(void)
                       : goto_start[i] + (goto_target[i] - goto_start[i]) * fraction;
     if (elapsed >= goto_duration_ms) goto_busy = 0U;
   }
-  static const float kp[6] = {35, 30, 20, 35, 30, 30};
-  static const float kd[6] = {1.5f, 1.2f, 1, 1.5f, 1.6f, 1.2f};
+  static const float kp[6] = {35, 60, 20, 35, 30, 60};
+  static const float kd[6] = {1.5f, 3.2f, 1, 1.5f, 1.6f, 3.2f};
   for (uint8_t i = 0U; i < 6U; ++i) {
     EL05_Motor_Ctrl(&hfdcan1, (uint8_t)(r_leg_pitch + i), 0, leg_control[i], 0, kp[i]*kp_add, kd[i]*kd_add);
     EL05_Motor_Ctrl(&hfdcan2, (uint8_t)(l_leg_pitch + i), 0, leg_control[i+6U], 0, kp[i]*kp_add, kd[i]*kd_add);
