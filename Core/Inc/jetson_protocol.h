@@ -34,6 +34,7 @@
 #define COMMAND_ENABLE              (1UL << 0)
 #define COMMAND_ESTOP               (1UL << 1)
 #define COMMAND_CLEAR_FAULT         (1UL << 2)
+#define COMMAND_TEACHING            (1UL << 3)
 
 #define STATE_MOTORS_ENABLED        (1UL << 0)
 #define STATE_FAULT                 (1UL << 1)
@@ -42,6 +43,8 @@
 #define STATE_COMMAND_FRESH         (1UL << 4)
 #define STATE_START_BUTTON          (1UL << 5)
 #define STATE_STARTUP_ACTIVE        (1UL << 6)
+/* Firmware capability: raw encoder teaching + stop without reboot. */
+#define STATE_TEACHING_READY        (1UL << 7)
 
 #pragma pack(push, 1)
 typedef struct {

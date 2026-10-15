@@ -81,6 +81,7 @@ static uint32_t last_send_tick_ms;
 
 volatile float g_debug_motor_target[PROTOCOL_NUM_JOINTS];
 volatile uint8_t g_debug_jetson_control_active;
+volatile uint8_t g_debug_teaching_session;
 volatile uint32_t g_debug_watchdog_trip_count;
 volatile uint32_t g_debug_estop_trip_count;
 volatile uint32_t g_debug_invalid_command_count;
@@ -385,6 +386,7 @@ void JetsonRobotBridge_Init(void)
     last_applied_command_count = 0U;
     memset((void *)g_debug_motor_target, 0, sizeof(g_debug_motor_target));
     g_debug_jetson_control_active = 0U;
+    g_debug_teaching_session = 0U;
     g_debug_watchdog_trip_count = 0U;
     g_debug_estop_trip_count = 0U;
     g_debug_invalid_command_count = 0U;
@@ -430,6 +432,11 @@ void JetsonRobotBridge_ProcessCommand(void)
         if (g_debug_jetson_control_active != 0U) {
             ++g_debug_watchdog_trip_count;
 
+            if (g_debug_teaching_session != 0U) {
+                stop_all_motors();
+                g_debug_jetson_control_active = 0U;
+            }
+
             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
         }
         return;
@@ -439,6 +446,40 @@ void JetsonRobotBridge_ProcessCommand(void)
         return;
     }
     last_applied_command_count = command_count_after;
+
+    /* Reject malformed teaching frames before changing ownership. */
+    if ((command.command_flags & COMMAND_TEACHING) != 0U) {
+        if (!command_targets_are_valid(&command)) {
+            ++g_debug_invalid_command_count;
+            stop_all_motors();
+            g_debug_jetson_control_active = 0U;
+            return;
+        }
+        if (g_debug_teaching_session == 0U) {
+            Robot_EnterTeachingMode();
+            g_debug_teaching_session = 1U;
+            lean_target = lean_applied = 0.0f;
+            g_debug_pose_lean_applied = 0.0f;
+            g_debug_feedback_freeze = 0U;
+            clear_startup();
+        }
+        if (((command.command_flags & COMMAND_ENABLE) == 0U) ||
+            ((command.command_flags & COMMAND_ESTOP) != 0U)) {
+            ++g_debug_estop_trip_count;
+            stop_all_motors();
+            g_debug_jetson_control_active = 0U;
+            return; /* Never reset/re-home in a teaching session. */
+        }
+    } else if ((command.command_flags & COMMAND_ENABLE) != 0U &&
+               (command.command_flags & COMMAND_ESTOP) == 0U &&
+               command_targets_are_valid(&command)) {
+        /* A subsequently started walking process explicitly takes ownership. */
+        g_debug_teaching_session = 0U;
+    } else if (g_debug_teaching_session != 0U) {
+        stop_all_motors();
+        g_debug_jetson_control_active = 0U;
+        return;
+    }
 
     if (((command.command_flags & COMMAND_ENABLE) == 0U) ||
         ((command.command_flags & COMMAND_ESTOP) != 0U)) {
@@ -527,7 +568,7 @@ uint8_t JetsonRobotBridge_SendState(void)
 
         /* 3. 单帧限幅 —— 反馈偏离目标不超过限制值，过滤跳变 */
         float delta = corrected - target_position[index];
-        if (g_debug_local_leg_active == 0U) {
+        if (g_debug_local_leg_active == 0U && g_debug_teaching_session == 0U) {
             if (delta > FRAME_ANGLE_LIMIT)  delta = FRAME_ANGLE_LIMIT;
             if (delta < -FRAME_ANGLE_LIMIT) delta = -FRAME_ANGLE_LIMIT;
             corrected = target_position[index] + delta;
@@ -542,7 +583,7 @@ uint8_t JetsonRobotBridge_SendState(void)
 
     /* 冻结期间回放前倾前的快照：上位机拿假数据做识别，电机侧闭环不受影响。
      * timestamp_us 不冻——它是"新一帧"的单调时钟，冻掉会让上位机误判过期。 */
-    if (g_debug_feedback_freeze != 0U) {
+    if (g_debug_feedback_freeze != 0U && g_debug_teaching_session == 0U) {
         memcpy(state.joint_position, frozen_joint_position, sizeof(state.joint_position));
         memcpy(state.joint_velocity, frozen_joint_velocity, sizeof(state.joint_velocity));
         memcpy(state.accel_m_s2, &frozen_imu[0], sizeof(state.accel_m_s2));
@@ -553,6 +594,7 @@ uint8_t JetsonRobotBridge_SendState(void)
     if (mode_flags == 0x0FFFU) {
         state.status_flags |= STATE_MOTORS_ENABLED;
     }
+    state.status_flags |= STATE_TEACHING_READY;
     if (fault_flags != 0U) {
         state.status_flags |= STATE_FAULT;
     }

@@ -516,6 +516,11 @@ static void Handle_Action_Request(const ActionRequestPayload *request)
 {
   Robot_StateTypeDef next_state;
 
+  if (g_debug_teaching_session != 0U) {
+    Queue_Action_Status(request->event_id, request->action_id, ACTION_STATUS_BUSY);
+    return;
+  }
+
   if (request->event_id == active_event_id && active_event_id != 0U) {         // 如果当前动作的事件 ID 与上位机请求的事件 ID 相同，说明上位机重复发送了请求
     Queue_Action_Status(request->event_id, request->action_id,
         request->action_id == active_action_id ? active_action_status : ACTION_STATUS_INVALID);
@@ -954,8 +959,8 @@ void BUTTON_CHANGE(void)
   uint8_t pressed = buttons & ~previous_buttons;
   previous_buttons = buttons;
   (void)JetsonRobotBridge_ServiceStartupButton();
-  if (robot_state != ROBOT_STATE_IDLE || g_debug_local_leg_active != 0U ||
-      active_action_status == ACTION_STATUS_ACCEPTED) return;
+  if (g_debug_teaching_session != 0U || robot_state != ROBOT_STATE_IDLE ||
+      g_debug_local_leg_active != 0U || active_action_status == ACTION_STATUS_ACCEPTED) return;
   if (pressed & 1U) robot_state = ROBOT_STATE_LLEG;
   else if (pressed & 2U) robot_state = ROBOT_STATE_RLEG;
   else if (pressed & 4U) {
@@ -1029,6 +1034,17 @@ static void Action_Goto_Cancel(void)
   g_debug_local_leg_active = 0U;
   local_watchdog_required = 0U;
   local_release_pending = 0U;
+}
+
+/* Called before the first teaching command is applied, in the main loop. */
+void Robot_EnterTeachingMode(void)
+{
+  Action_Goto_Cancel();
+  robot_state = ROBOT_STATE_IDLE;
+  if (active_action_status == ACTION_STATUS_ACCEPTED) {
+    active_action_status = ACTION_STATUS_FAILED;
+    Queue_Action_Status(active_event_id, active_action_id, active_action_status);
+  }
 }
 
 /* One motor batch every 20 ms, including the three-second hold. */
