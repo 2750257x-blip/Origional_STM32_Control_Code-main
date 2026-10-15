@@ -659,17 +659,13 @@ void ROBOT_Comms_Service(void)
   //   imu_request_quat();
   // }
   //汇总电机状态和IMU数据，使用与通信测试工程相同的帧协议上传Nano
-  __disable_irq();
-  uint16_t motor_status_ready_copy = motor_status_ready;
-  __enable_irq();
   /* 发送触发改成纯时间节流：距上次成功发送满 g_state_send_interval_ms 就发。
    * 不再依赖 imu_data_ready / IMU_DataIsFresh 做门控——IMU 掉数据/掉电时
    * 那个锁存永远凑不齐，门控恒假会导致一帧都不发、Nano 100ms 超时掉线。
    * 帧里的 STATE_IMU_VALID 仍由 SendState() 依 imu_data_ready + 新鲜度计算，
    * 所以 IMU 坏了 Nano 看得出来，但链路本身不会断。 */
   uint32_t now_ms = HAL_GetTick();
-  if (motor_status_ready_copy == 0x0FFF &&
-      (uint32_t)(now_ms - g_state_send_last_ms) >= g_state_send_interval_ms) {
+  if ((uint32_t)(now_ms - g_state_send_last_ms) >= g_state_send_interval_ms) {
     if (JetsonRobotBridge_SendState() == USBD_OK) { // USB发送成功
       g_state_send_last_ms = now_ms;
       g_state_send_ok_count++;

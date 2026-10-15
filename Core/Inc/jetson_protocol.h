@@ -45,6 +45,8 @@
 #define STATE_STARTUP_ACTIVE        (1UL << 6)
 /* Firmware capability: raw encoder teaching + stop without reboot. */
 #define STATE_TEACHING_READY        (1UL << 7)
+#define STATE_CAN_DIAGNOSTICS       (1UL << 8)
+#define STATE_CAN_FAULT             (1UL << 9)
 
 #pragma pack(push, 1)
 typedef struct {
@@ -67,6 +69,15 @@ typedef struct {
     uint32_t command_rx_count;
     /* Calls that submitted all 12 leg targets to the motor CAN buses. */
     uint32_t system_control_cycle;
+    uint16_t feedback_age_ms[12]; /* wire order; 65535 means never received */
+    uint32_t feedback_count[12];
+    uint32_t can_psr[2];          /* CAN1 right, CAN2 left */
+    uint32_t can_ecr[2];
+    uint32_t can_tx_failures[2];
+    uint32_t can_recoveries[2];
+    uint32_t can_pending[2];
+    uint32_t applied_command_sequence;
+    uint32_t applied_gain_mode;   /* 0 stopped, 1 zero PD, 2 nonzero PD */
 } RobotStatePayload;
 
 typedef struct {
@@ -101,7 +112,7 @@ extern volatile uint32_t g_debug_startup_received_ms;
 #pragma pack(pop)
 
 _Static_assert(sizeof(ProtocolHeader) == 8U, "ProtocolHeader wire size must be 8 bytes");
-_Static_assert(sizeof(RobotStatePayload) == 152U, "RobotStatePayload wire size must be 152 bytes");
+_Static_assert(sizeof(RobotStatePayload) == 272U, "RobotStatePayload wire size must be 272 bytes");
 _Static_assert(sizeof(RobotCommandPayload) == 152U, "RobotCommandPayload wire size must be 152 bytes");
 _Static_assert(sizeof(ActionRequestPayload) == 5U, "ActionRequestPayload wire size must be 5 bytes");
 _Static_assert(sizeof(ActionStatusPayload) == 6U, "ActionStatusPayload wire size must be 6 bytes");

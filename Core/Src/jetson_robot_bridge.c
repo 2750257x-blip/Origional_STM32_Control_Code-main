@@ -6,6 +6,7 @@
 #include "jetson_usb_cdc.h"
 #include "motor_el05.h"
 #include "protocol.h"
+#include "leg_can_health.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -78,6 +79,9 @@ static float frozen_imu[10];        /* accel(3) + gyro(3) + quat(4) */
 /* Nano 下发的目标位置，用作平滑参考（无滞后、无噪声） */
 static float target_position[PROTOCOL_NUM_JOINTS];
 static uint32_t last_send_tick_ms;
+static uint32_t applied_command_sequence;
+static uint32_t applied_gain_mode;
+static uint32_t processing_command_sequence;
 
 volatile float g_debug_motor_target[PROTOCOL_NUM_JOINTS];
 volatile uint8_t g_debug_jetson_control_active;
@@ -161,10 +165,16 @@ bool JetsonRobotBridge_ServiceStartupButton(void)
 static void stop_all_motors(void)
 {
     uint8_t index;
+    uint32_t failures = g_leg_tx_failures[0] + g_leg_tx_failures[1];
+    LegCan_BeginBatch();
 
     for (index = 0U; index < 6U; ++index) {
         EL05_Motor_Stop(&hfdcan1, (uint8_t)(r_leg_pitch + index));
         EL05_Motor_Stop(&hfdcan2, (uint8_t)(l_leg_pitch + index));
+    }
+    if (failures == g_leg_tx_failures[0] + g_leg_tx_failures[1]) {
+        applied_gain_mode = 0U;
+        applied_command_sequence = processing_command_sequence;
     }
 }
 
@@ -278,6 +288,8 @@ static bool command_targets_are_valid(const RobotCommandPayload *command)
 
 static void apply_position_targets(const RobotCommandPayload *command)
 {
+    uint32_t failures = g_leg_tx_failures[0] + g_leg_tx_failures[1];
+    bool zero_pd = true;
     static const uint8_t left_motor_id[6] = {
         l_leg_pitch, l_leg_roll, l_leg_yaw,
         l_knee_pitch, l_ankle_pitch, l_ankle_roll
@@ -339,6 +351,12 @@ static void apply_position_targets(const RobotCommandPayload *command)
             command->kd[protocol_index]);
     }
     system_control_cycle ++;
+    if (failures == g_leg_tx_failures[0] + g_leg_tx_failures[1]) {
+        for (index = 0U; index < PROTOCOL_NUM_JOINTS; ++index)
+            if (command->kp[index] != 0.0f || command->kd[index] != 0.0f) zero_pd = false;
+        applied_gain_mode = zero_pd ? 1U : 2U;
+        applied_command_sequence = processing_command_sequence;
+    }
 }
 
 void JetsonRobotBridge_CaptureFrozenState(void)
@@ -417,6 +435,7 @@ void JetsonRobotBridge_ProcessCommand(void)
     uint32_t command_count_before;
     uint32_t command_count_after;
     bool fresh;
+    LegCan_Service();
 
     /* Ensure the copied payload and its debug counter refer to the same frame. */
     do {
@@ -425,6 +444,7 @@ void JetsonRobotBridge_ProcessCommand(void)
             now_ms,
             JETSON_COMMAND_WATCHDOG_MS,
             &command);
+        processing_command_sequence = g_debug_command_sequence;
         command_count_after = g_debug_command_count;
     } while (command_count_before != command_count_after);
 
@@ -505,6 +525,7 @@ void JetsonRobotBridge_ProcessCommand(void)
     if (g_debug_startup_active != 0U) {
         clear_startup();
     }
+    LegCan_BeginBatch();
     if (g_debug_jetson_control_active == 0U) {
         motor_enable();
         g_debug_jetson_control_active = 1U;
@@ -537,6 +558,24 @@ uint8_t JetsonRobotBridge_SendState(void)
     imu_flags = imu_data_ready;
     state.command_rx_count = g_debug_command_count;
     state.system_control_cycle = system_control_cycle;
+    for (index = 0U; index < 12U; ++index) {
+        uint32_t age = (uint32_t)(HAL_GetTick() - g_leg_rx_ms[index]);
+        state.feedback_count[index] = g_leg_rx_count[index];
+        state.feedback_age_ms[index] = (g_leg_rx_count[index] == 0U || age > 65535U)
+            ? 65535U : (uint16_t)age;
+    }
+    state.can_psr[0] = hfdcan1.Instance->PSR;
+    state.can_psr[1] = hfdcan2.Instance->PSR;
+    state.can_ecr[0] = hfdcan1.Instance->ECR;
+    state.can_ecr[1] = hfdcan2.Instance->ECR;
+    state.can_pending[0] = hfdcan1.Instance->TXBRP;
+    state.can_pending[1] = hfdcan2.Instance->TXBRP;
+    for (index = 0U; index < 2U; ++index) {
+        state.can_tx_failures[index] = g_leg_tx_failures[index];
+        state.can_recoveries[index] = g_leg_recoveries[index];
+    }
+    state.applied_command_sequence = applied_command_sequence;
+    state.applied_gain_mode = applied_gain_mode;
     __enable_irq();
 
     state.timestamp_us = HAL_GetTick() * 1000U;
@@ -602,9 +641,15 @@ uint8_t JetsonRobotBridge_SendState(void)
         IMU_DataIsFresh(HAL_GetTick(), IMU_FRESHNESS_MS)) {
         state.status_flags |= STATE_IMU_VALID;
     }
-    if (ready_flags == 0x0FFFU) {
+    /* Ever-received bits do NOT establish that the encoder data is fresh. */
+    bool all_fresh = ready_flags == 0x0FFFU;
+    for (index = 0U; index < 12U; ++index)
+        if (state.feedback_age_ms[index] > LEG_FEEDBACK_TIMEOUT_MS) all_fresh = false;
+    if (all_fresh) {
         state.status_flags |= STATE_ENCODERS_VALID;
     }
+    state.status_flags |= STATE_CAN_DIAGNOSTICS;
+    if (!LegCan_Healthy(HAL_GetTick())) state.status_flags |= STATE_CAN_FAULT;
     if (Protocol_CommandIsFresh(HAL_GetTick(), JETSON_COMMAND_WATCHDOG_MS)) {
         state.status_flags |= STATE_COMMAND_FRESH;
     }

@@ -26,6 +26,7 @@
 #include "motor_el05.h"
 #include "imu.h"
 #include <stdint.h>
+#include "leg_can_health.h"
 /* USER CODE END 0 */
 
 FDCAN_HandleTypeDef hfdcan1;
@@ -430,27 +431,8 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef* fdcanHandle)
 
 /* USER CODE BEGIN 1 */
 // FDCAN发送扩展帧：id=29位扩展ID，data=数据，len=长度(1-8)
-uint8_t FDCAN_Send_ExtFrame(FDCAN_HandleTypeDef *hfdcan, uint32_t id, uint8_t *data, uint8_t len)
-{
-  FDCAN_TxHeaderTypeDef tx_header;
-  if(len > 8 || len < 1) return 1;
-
-  tx_header.Identifier = id;
-  tx_header.IdType = FDCAN_EXTENDED_ID;       // 扩展ID
-  tx_header.TxFrameType = FDCAN_DATA_FRAME;   // 数据帧
-  tx_header.DataLength = len;
-  tx_header.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-  tx_header.BitRateSwitch = FDCAN_BRS_OFF;    // 无波特率切换
-  tx_header.FDFormat = FDCAN_CLASSIC_CAN;    // 普通CAN模式
-  tx_header.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
-  tx_header.MessageMarker = 0;
-
-  if(HAL_FDCAN_AddMessageToTxFifoQ(hfdcan, &tx_header, data) == HAL_OK)
-  {
-    return 0;
-  }
-  return 1;
-}
+/* FDCAN_Send_ExtFrame is implemented in leg_can_health.c with bounded FIFO
+ * handling and explicit per-bus failure counters. */
 
 // FDCAN轮询接收扩展帧：返回0成功，id=接收到的扩展ID，data=数据，len=长度
 // uint8_t FDCAN_Recv_ExtFrame(FDCAN_HandleTypeDef *hfdcan, uint32_t *id, uint8_t *data, uint8_t *len)
@@ -478,7 +460,10 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
   {
     while(HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rx_header, data) == HAL_OK)
     {
-      if(rx_header.IdType == FDCAN_EXTENDED_ID)  // 只处理扩展ID
+      if(rx_header.IdType == FDCAN_EXTENDED_ID &&
+         rx_header.RxFrameType == FDCAN_DATA_FRAME &&
+         rx_header.DataLength == FDCAN_DLC_BYTES_8 &&
+         ((rx_header.Identifier >> 24) & 0x1FU) == CMD_STATUS)
       {
         uint8_t id = (uint8_t)((rx_header.Identifier >> 8) & 0xFF); // 提取电机ID（位于ID的特定位）
         // 解析电机状态
@@ -492,6 +477,9 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
         if (hfdcan->Instance == FDCAN1) {
           // 处理FDCAN1接收到的电机状态
           if (id >= r_leg_pitch && id <= r_ankle_roll) {
+          uint8_t wire = (uint8_t)(id - r_leg_pitch + 6U);
+          g_leg_rx_ms[wire] = HAL_GetTick();
+          ++g_leg_rx_count[wire];
           MotorIMU_Packet_float[(id-r_leg_pitch)*2+12]= (float)u_pos * (P_MAX - P_MIN) / 65535.0f + P_MIN;
           MotorIMU_Packet_float[(id-r_leg_pitch)*2+1+12]= (float)u_vel * (V_MAX - V_MIN) / 65535.0f + V_MIN;
           motor_torque_float[(id-r_leg_pitch)] = (float)u_tor * (T_MAX - T_MIN) / 65535.0f + T_MIN;
@@ -506,6 +494,9 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
         } else if (hfdcan->Instance == FDCAN2) {
           // 处理FDCAN2接收到的数据
           if (id >= l_leg_pitch && id <= l_ankle_roll) {
+          uint8_t wire = (uint8_t)(id - l_leg_pitch);
+          g_leg_rx_ms[wire] = HAL_GetTick();
+          ++g_leg_rx_count[wire];
           MotorIMU_Packet_float[(id-l_leg_pitch)*2]= (float)u_pos * (P_MAX - P_MIN) / 65535.0f + P_MIN;
           MotorIMU_Packet_float[(id-l_leg_pitch)*2+1]= (float)u_vel * (V_MAX - V_MIN) / 65535.0f + V_MIN;
           memcpy(&motor_status_buf[(id-l_leg_pitch)*4+24], data, 4); // 将接收到的数据复制到对应电机的状态缓冲区
