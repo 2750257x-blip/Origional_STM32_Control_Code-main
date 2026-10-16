@@ -107,6 +107,10 @@ bool JetsonRobotBridge_ServiceStartupButton(void)
     bool pressed;
 
     if (Protocol_TakeStartupControl(&flags)) {
+        if ((flags & STARTUP_HOST_READY) != 0U) {
+            /* Startup success latch only; reset/ARM/PA3 and motors stay independent. */
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+        }
         startup_last_received_ms = g_debug_startup_received_ms;
         if (((flags & STARTUP_ARM) == 0U) ||
             ((g_debug_jetson_control_active != 0U) &&

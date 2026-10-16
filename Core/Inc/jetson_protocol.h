@@ -17,6 +17,7 @@
 /* One-byte STARTUP_CONTROL payload; independent of motor COMMAND/watchdog. */
 #define STARTUP_ARM                 (1U << 0)
 #define STARTUP_CARD_READY          (1U << 1)
+#define STARTUP_HOST_READY          (1U << 2) /* PA1: vision + connector started. */
 
 #define ACTION_STATUS_ACCEPTED      1U
 #define ACTION_STATUS_DONE          2U

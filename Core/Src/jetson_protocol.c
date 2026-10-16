@@ -94,7 +94,7 @@ static void process_complete_frame(uint32_t now_ms)
     } else if ((header.message_type == PROTOCOL_MSG_STARTUP_CONTROL) &&
                (header.payload_length == 1U)) {
         uint8_t flags = rx_frame[HEADER_SIZE];
-        if ((flags & (uint8_t)~(STARTUP_ARM | STARTUP_CARD_READY)) == 0U) {
+        if ((flags & (uint8_t)~(STARTUP_ARM | STARTUP_CARD_READY | STARTUP_HOST_READY)) == 0U) {
             pending_startup_flags = flags;
             pending_startup_ms = now_ms;
             startup_available = true;
